@@ -49,3 +49,9 @@
 @media(max-width:800px){#controls-button{left:12px;bottom:111px}.hud-help{display:none}}
 @media(max-width:520px){.control-grid{grid-template-columns:1fr}.overlay-card{padding:20px}.overlay-card h2{font-size:40px}}
 @media(max-height:1000px){.menu-content{padding-top:3vh}h1{font-size:clamp(72px,8vw,130px);margin:18px 0 22px}.mission-card{margin-top:20px;padding:14px 18px}.mission-card strong{margin:12px 0 6px}.card-tags{margin-top:12px}.jet-select{margin-top:18px}.jet-option{min-height:62px}.jet-option strong{margin-top:6px;font-size:17px}.menu-actions{margin-top:15px}}
+.enemy-indicators{position:absolute;inset:0;overflow:hidden;pointer-events:none}
+.enemy-indicator{position:absolute;display:flex;flex-direction:column;align-items:center;gap:1px;min-width:45px;transform:translate(-50%,-50%);color:#f2a17b;text-align:center;text-shadow:0 1px 5px #03151d,0 0 8px #071d24;font-size:8px;letter-spacing:.08em;white-space:nowrap;opacity:.88}
+.enemy-indicator .bearing{display:block;font-size:13px;line-height:12px;transform:rotate(var(--bearing-angle,0deg));transform-origin:center}
+.enemy-indicator.in-view .bearing{font-size:13px;transform:none}
+.enemy-indicator.ace{color:#ffd19a}
+.enemy-indicator .range{padding:1px 3px;background:#071c24a8}
