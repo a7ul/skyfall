@@ -6,7 +6,7 @@ const center = new THREE.Vector3();
 
 // Remove only the triangles of a collapsed building or broad blast zone.
 // Ordinary surface hits never cut an open patch in the streamed tile.
-export function fractureMesh(mesh, point, radius, {makeFragments=true,building=null,blastZone=null}={}) {
+export function fractureMesh(mesh, point, radius, {makeFragments=true,building=null,blastZone=null,footprintMargin=2.2}={}) {
   if(!building&&!blastZone)return [];
   const geometry = mesh.geometry;
   const position = geometry?.getAttribute('position');
@@ -37,7 +37,7 @@ export function fractureMesh(mesh, point, radius, {makeFragments=true,building=n
       if(center.y<=blastRubbleHeight(distance,blastZone.core,blastZone.outer))continue;
     }else if(building){
       center.applyMatrix4(mesh.matrixWorld);
-      if(center.y<1.5||center.y>building.top+3||distanceToFootprint(center.x,center.z,building)>2.2)continue;
+      if(center.y<1.5||center.y>building.top+3||distanceToFootprint(center.x,center.z,building)>footprintMargin)continue;
     }
     if (a.distanceToSquared(b) < .0001 || b.distanceToSquared(c) < .0001) continue;
 

@@ -58,6 +58,15 @@ if(debugOutput){
       const fallback=origin.clone().addScaledVector(direction,distance);
       return cityImpact(origin,direction,distance,fallback,size).kind;
     },
+    previewNukeAt(x,z,age=5){
+      const y=world?.visualHeight?.(x,z)??0;
+      makeNuclearEffect(new THREE.Vector3(x,y,z));
+      updateNuclearEffects(age);
+      blastFlash=0;$('blast-flash').style.opacity='0';
+      paused=true;camera.position.set(x+420,y+330,z+560);
+      camera.up.set(0,1,0);camera.lookAt(x,y+160,z);
+      return [x,y,z];
+    },
     get traffic(){return {total:world?.traffic?.count,visible:world?.traffic?.visibleCount,sample:world?.traffic?.sampleVehicle?.position.toArray()};},
     get damage(){return {craters:groundCraters.length,collapsed:collapseRubble.length};}
   };
@@ -77,7 +86,7 @@ async function init(){
 }
 
 function removeObject(object){if(!object)return;scene.remove(object);if(object.userData.afterburners){for(const exhaust of object.userData.afterburners)exhaust.traverse(child=>{if(child.isMesh)child.material.dispose();});return;}object.traverse(child=>{if(child.isMesh){child.geometry.dispose();const materials=Array.isArray(child.material)?child.material:[child.material];for(const material of materials)material?.dispose();}});}
-function clearSceneObjects(){removeObject(jet);jet=null;removeObject(previewJet);previewJet=null;for(const t of [...radars,...enemies])removeObject(t.group);for(const m of [...projectiles,...bombProjectiles,...bullets])removeObject(m.mesh);for(const m of projectiles)disposeMissileTrail(scene,m.trail);for(const trail of lingeringTrails)disposeMissileTrail(scene,trail);for(const effect of nuclearEffects)disposeNuclearEffect(effect);for(const shot of enemyShots)removeObject(shot.mesh);for(const p of particles){scene.remove(p.mesh);if(!p.sharedGeometry)p.mesh.geometry.dispose();p.mesh.material.dispose();}for(const mark of damageMarks){scene.remove(mark);mark.geometry.dispose();mark.material.dispose();}for(const crater of groundCraters)removeObject(crater);for(const wreck of wrecks)removeObject(wreck.group);for(const fire of fires){scene.remove(fire.mesh);fire.mesh.material.dispose();}for(const piece of debris)removeObject(piece.mesh);for(const rubble of [...blastRubble,...collapseRubble])removeObject(rubble);blastRubble.length=collapseRubble.length=0;world?.resetDamage?.();world?.traffic?.reset();if(extraction)removeObject(extraction.group);radars=[];enemies=[];enemyShots=[];projectiles=[];bombProjectiles=[];nuclearEffects=[];bullets=[];particles=[];damageMarks=[];groundCraters=[];wrecks=[];fires=[];debris=[];extraction=null;blastFlash=0;$('blast-flash').style.opacity='0';$('nuke-countdown').classList.add('hidden');}
+function clearSceneObjects(){removeObject(jet);jet=null;removeObject(previewJet);previewJet=null;for(const t of [...radars,...enemies])removeObject(t.group);for(const m of [...projectiles,...bombProjectiles,...bullets])removeObject(m.mesh);for(const m of projectiles)disposeMissileTrail(scene,m.trail);for(const trail of lingeringTrails)disposeMissileTrail(scene,trail);for(const effect of nuclearEffects)disposeNuclearEffect(effect);for(const shot of enemyShots)removeObject(shot.mesh);for(const p of particles){scene.remove(p.mesh);if(!p.sharedGeometry)p.mesh.geometry.dispose();p.mesh.material.dispose();}for(const mark of damageMarks){scene.remove(mark);mark.geometry.dispose();mark.material.dispose();}for(const crater of groundCraters)removeObject(crater);for(const wreck of wrecks)removeObject(wreck.group);for(const fire of fires)for(const sprite of [fire.mesh,...fire.layers]){scene.remove(sprite);sprite.material.dispose();}for(const piece of debris)removeObject(piece.mesh);for(const rubble of [...blastRubble,...collapseRubble])removeObject(rubble);blastRubble.length=collapseRubble.length=0;world?.resetDamage?.();world?.traffic?.reset();if(extraction)removeObject(extraction.group);radars=[];enemies=[];enemyShots=[];projectiles=[];bombProjectiles=[];nuclearEffects=[];bullets=[];particles=[];damageMarks=[];groundCraters=[];wrecks=[];fires=[];debris=[];extraction=null;blastFlash=0;$('blast-flash').style.opacity='0';$('nuke-countdown').classList.add('hidden');}
 function start(free=false){if(!renderer)return;audio.setGunFiring(false);clearSceneObjects();audio.init();audio.ctx?.resume();audio.setActive(true);mode=free?'free':'mission';paused=false;ended=false;phase=0;elapsed=0;kills=0;shots=0;missiles=free?99:6;bombAmmo=free?99:4;nuclearAmmo=free?Infinity:1;bombCooldown=0;health=100;throttle=free?.3:.68;speed=targetAirspeed(throttle,AIRCRAFT[selected].speed);pitch=0;yaw=0;roll=0;flightControls.pitchInput=flightControls.rollInput=flightControls.yawInput=0;quat.identity();forward.set(0,0,-1);lockTime=0;target=null;cameraMode=0;mouseActive=false;mouseX=0;mouseY=0;gamepadWasPressed=bombWasPressed=nukeWasPressed=false;airbrake=false;hudTimer=0;cityFloor=-100;cityFloorTimer=0;weaponCueTimer=0;cameraShake=0;jet=createJet(AIRCRAFT[selected]);jet.position.set(0,free?145:430,free?550:950);scene.add(jet);if(!free){radars=[createRadar(scene,-180,-320,'RELAY ALPHA',surfaceHeight(-180,-320)),createRadar(scene,520,-760,'RELAY BRAVO',surfaceHeight(520,-760))];setRadio('Viper One, this is Echo. Two hostile relay sites are jamming the Lyon evacuation corridor. Silence them.');}else{setRadio('Free flight authorized. Weapons free. Fire a missile with or without a lock.');}
   ui.menu.classList.add('hidden');ui.overlay.classList.add('hidden');ui.hud.classList.remove('hidden');$('mode-label').textContent=free?'FREE FLIGHT':'MISSION 01';$('mission-name').textContent=free?'LYON // FREE FLIGHT':'BREAK THE SILENCE';updateObjective();updateCamera(1);updateHud();audio.click();}
 function hangar(){audio.setActive(false);paused=false;mode='menu';clearSceneObjects();setPreviewJet();ui.overlay.classList.add('hidden');ui.hud.classList.add('hidden');ui.menu.classList.remove('hidden');document.exitPointerLock?.();}
@@ -289,8 +298,10 @@ function dropBomb(nuclear=false){
   updateHud();
 }
 function effectTexture(kind){
-  const canvas=document.createElement('canvas');canvas.width=canvas.height=128;
-  const ctx=canvas.getContext('2d'),gradient=ctx.createRadialGradient(64,64,1,64,64,62);
+  const resolution=kind==='smoke'?256:128;
+  const canvas=document.createElement('canvas');canvas.width=canvas.height=resolution;
+  const mid=resolution/2;
+  const ctx=canvas.getContext('2d'),gradient=ctx.createRadialGradient(mid,mid,1,mid,mid,mid-2);
   if(kind==='fire'){
     gradient.addColorStop(0,'rgba(255,250,219,1)');gradient.addColorStop(.22,'rgba(255,195,83,.95)');
     gradient.addColorStop(.5,'rgba(237,83,26,.78)');gradient.addColorStop(.78,'rgba(90,24,13,.24)');
@@ -301,9 +312,9 @@ function effectTexture(kind){
     gradient.addColorStop(0,'rgba(46,49,47,.6)');gradient.addColorStop(.43,'rgba(58,61,58,.42)');
     gradient.addColorStop(.78,'rgba(75,77,73,.17)');gradient.addColorStop(1,'rgba(75,77,73,0)');
   }
-  gradient.addColorStop(1,'rgba(0,0,0,0)');ctx.fillStyle=gradient;ctx.fillRect(0,0,128,128);
+  gradient.addColorStop(1,'rgba(0,0,0,0)');ctx.fillStyle=gradient;ctx.fillRect(0,0,resolution,resolution);
   if(kind==='smoke'){
-    const pixels=ctx.getImageData(0,0,128,128);
+    const pixels=ctx.getImageData(0,0,resolution,resolution);
     const hash=(x,y)=>{let n=Math.imul(x,374761393)+Math.imul(y,668265263);n=Math.imul(n^(n>>>13),1274126177);return ((n^(n>>>16))>>>0)/4294967295;};
     const layer=(x,y,scale)=>{
       const fx=x/scale,fy=y/scale,ix=Math.floor(fx),iy=Math.floor(fy);
@@ -312,20 +323,25 @@ function effectTexture(kind){
       const b=hash(ix,iy+1)*(1-sx)+hash(ix+1,iy+1)*sx;
       return a*(1-sy)+b*sy;
     };
-    for(let y=0;y<128;y++)for(let x=0;x<128;x++){
-      const offset=(y*128+x)*4,radial=Math.max(0,1-Math.hypot(x-64,y-64)/62);
-      const noise=layer(x,y,28)*.5+layer(x,y,13)*.32+layer(x,y,6)*.18;
-      const shade=150+noise*90;
+    for(let y=0;y<resolution;y++)for(let x=0;x<resolution;x++){
+      const offset=(y*resolution+x)*4;
+      const low=layer(x,y,65),midNoise=layer(x,y,29),fine=layer(x,y,11);
+      const noise=low*.52+midNoise*.33+fine*.15;
+      const dx=(x-mid)/(mid-5),dy=(y-mid)/(mid-5);
+      const warped=Math.hypot(dx+(low-.5)*.25,dy+(midNoise-.5)*.25);
+      const envelope=Math.max(0,Math.min(1,(1.03-warped)*5));
+      const density=Math.max(0,Math.min(1,(noise-.27)*1.9))*envelope;
+      const shade=170+noise*75;
       pixels.data[offset]=shade;pixels.data[offset+1]=shade;pixels.data[offset+2]=shade*.96;
-      pixels.data[offset+3]=Math.round(255*Math.pow(radial,.83)*Math.max(0,(noise-.19)*1.24));
+      pixels.data[offset+3]=Math.round(255*density);
     }
     ctx.putImageData(pixels,0,0);
   }
   if(kind!=='fire'){
     for(let i=0;i<150;i++){
-      const angle=Math.random()*Math.PI*2,r=Math.sqrt(Math.random())*55;
+      const angle=Math.random()*Math.PI*2,r=Math.sqrt(Math.random())*(mid-9);
       ctx.fillStyle=kind==='scorch'?'rgba(12,10,9,.08)':'rgba(15,20,20,.025)';
-      ctx.beginPath();ctx.arc(64+Math.cos(angle)*r,64+Math.sin(angle)*r,1+Math.random()*5,0,Math.PI*2);ctx.fill();
+      ctx.beginPath();ctx.arc(mid+Math.cos(angle)*r,mid+Math.sin(angle)*r,1+Math.random()*5,0,Math.PI*2);ctx.fill();
     }
   }
   if(kind==='scorch'){
@@ -514,8 +530,14 @@ function ignite(position,size=12){
   if(existing){existing.size=Math.max(existing.size,size);return;}
   const mesh=new THREE.Sprite(new THREE.SpriteMaterial({map:fireTexture,color:0xffa455,transparent:true,opacity:.67,depthWrite:false,blending:THREE.NormalBlending}));
   mesh.position.copy(position);mesh.scale.set(size*.7,size,1);scene.add(mesh);
-  fires.push({mesh,size,smoke:Math.random()*.2,age:0});
-  if(fires.length>24){const old=fires.shift();scene.remove(old.mesh);old.mesh.material.dispose();}
+  const layers=[];
+  for(let i=0;i<3;i++){
+    const layer=new THREE.Sprite(new THREE.SpriteMaterial({map:fireTexture,color:i===1?0xffc875:0xe66a30,transparent:true,opacity:.4,depthWrite:false}));
+    layer.position.copy(position).add(new THREE.Vector3((i-1)*size*.21,size*(.08+i*.06),(i%2?1:-1)*size*.12));
+    scene.add(layer);layers.push(layer);
+  }
+  fires.push({mesh,layers,size,smoke:Math.random()*.2,age:0});
+  if(fires.length>24){const old=fires.shift();for(const sprite of [old.mesh,...old.layers]){scene.remove(sprite);sprite.material.dispose();}}
 }
 function updateDestruction(dt){
   for(const piece of debris){
@@ -547,6 +569,11 @@ function updateDestruction(dt){
     const flicker=1+Math.sin(fire.age*17)*.12+Math.sin(fire.age*29)*.08;
     fire.mesh.scale.set(fire.size*.7*flicker,fire.size*flicker,1);
     fire.mesh.material.opacity=.57+Math.sin(fire.age*21)*.09;
+    fire.layers.forEach((layer,i)=>{
+      const pulse=1+Math.sin(fire.age*(13+i*4)+i*2.1)*.19;
+      layer.scale.set(fire.size*(.5+i*.06)*pulse,fire.size*(.65+i*.1)*pulse,1);
+      layer.material.opacity=.31+Math.sin(fire.age*(17+i*3)+i)*.08;
+    });
     if(fire.smoke<=0){
       fire.smoke=.2+Math.random()*.13;
       emitSmoke(fire.mesh.position.clone().add(new THREE.Vector3((Math.random()-.5)*2,fire.size*.36,(Math.random()-.5)*2)),fire.size*.8,2.4,0x2b2d2d);
@@ -718,27 +745,35 @@ function makeBlastRubble(position){
 }
 function makeNuclearEffect(position){
   const group=new THREE.Group();group.position.copy(position);scene.add(group);
-  const ring=new THREE.Mesh(new THREE.RingGeometry(.96,1.04,96),new THREE.MeshBasicMaterial({color:0xfff1d1,transparent:true,opacity:.9,depthWrite:false,side:THREE.DoubleSide,blending:THREE.AdditiveBlending}));
+  const ring=new THREE.Mesh(new THREE.RingGeometry(.965,1.035,96),new THREE.MeshBasicMaterial({color:0xfff5dc,transparent:true,opacity:.8,depthWrite:false,side:THREE.DoubleSide,blending:THREE.AdditiveBlending}));
   ring.rotation.x=-Math.PI/2;ring.position.y=1;group.add(ring);
   const dust=new THREE.Mesh(new THREE.RingGeometry(.78,1.12,96),new THREE.MeshBasicMaterial({color:0x8d8171,transparent:true,opacity:.53,depthWrite:false,side:THREE.DoubleSide}));
   dust.rotation.x=-Math.PI/2;dust.position.y=1.2;group.add(dust);
-  const fireball=new THREE.Mesh(new THREE.SphereGeometry(1,24,16),new THREE.MeshBasicMaterial({color:0xffca79,transparent:true,opacity:.9,depthWrite:false,side:THREE.DoubleSide,blending:THREE.AdditiveBlending}));
-  fireball.position.y=24;group.add(fireball);
+  const puffGeometry=new THREE.PlaneGeometry(1,1);
+  const smoke=new THREE.InstancedMesh(puffGeometry,new THREE.MeshBasicMaterial({map:smokeTexture,color:0xffffff,transparent:true,opacity:.86,depthWrite:false,side:THREE.DoubleSide,alphaTest:.025}),216);
+  smoke.instanceMatrix.setUsage(THREE.DynamicDrawUsage);smoke.frustumCulled=false;group.add(smoke);
+  const fireball=new THREE.InstancedMesh(new THREE.PlaneGeometry(1,1),new THREE.MeshBasicMaterial({map:fireTexture,color:0xffd48a,transparent:true,opacity:.88,depthWrite:false,side:THREE.DoubleSide,blending:THREE.AdditiveBlending}),28);
+  fireball.instanceMatrix.setUsage(THREE.DynamicDrawUsage);fireball.frustumCulled=false;group.add(fireball);
   const flash=new THREE.Sprite(new THREE.SpriteMaterial({map:fireTexture,color:0xfff7d9,transparent:true,opacity:1,depthWrite:false,blending:THREE.AdditiveBlending}));
   flash.position.y=35;group.add(flash);
   const light=new THREE.PointLight(0xffd5a0,0,650);light.position.y=55;group.add(light);
   const cloud=[];
-  for(let i=0;i<120;i++){
-    const type=i<40?'stem':i<90?'cap':i<106?'rim':'ground';
-    const angle=i*2.399963,radial=Math.sqrt(Math.random()),phase=Math.random()*Math.PI*2;
-    const sprite=new THREE.Sprite(new THREE.SpriteMaterial({map:smokeTexture,color:type==='ground'?0x8d8271:type==='rim'?0x5e5c58:i%4?0x474947:0x77736d,transparent:true,opacity:0,depthWrite:false}));
-    group.add(sprite);
-    cloud.push({sprite,type,angle,radial,phase,level:i%12,size:type==='cap'?36+Math.random()*31:type==='rim'?46+Math.random()*33:type==='stem'?22+Math.random()*27:24+Math.random()*26});
+  for(let i=0;i<216;i++){
+    const type=i<112?'stem':i<190?'cap':i<206?'rim':'ground';
+    const angle=Math.random()*Math.PI*2,radial=Math.sqrt(Math.random()),phase=Math.random()*Math.PI*2;
+    const shade=type==='ground'?new THREE.Color(0xb0a79a):type==='stem'?new THREE.Color(i%5?0x494b47:0x77736c):type==='rim'?new THREE.Color(0x68665f):new THREE.Color(i%4?0x5d5d59:0x817c73);
+    smoke.setColorAt(i,shade);
+    cloud.push({type,angle,radial,phase,level:Math.random(),size:type==='cap'?34+Math.random()*43:type==='rim'?43+Math.random()*37:type==='stem'?24+Math.random()*34:23+Math.random()*34});
   }
+  smoke.instanceColor.needsUpdate=true;
+  const dummy=new THREE.Object3D();dummy.scale.setScalar(.001);dummy.updateMatrix();
+  for(let i=0;i<216;i++)smoke.setMatrixAt(i,dummy.matrix);
+  for(let i=0;i<28;i++)fireball.setMatrixAt(i,dummy.matrix);
+  smoke.instanceMatrix.needsUpdate=true;fireball.instanceMatrix.needsUpdate=true;
   const distance=jet?.position.distanceTo(position)??Infinity;
   const candidates=world?.blastBuildingCandidates?.(position,360)||[];
   const water=isWaterImpact(position.x,position.z,position.y,(x,z)=>world?.traffic?.isRoadBridge?.(x,z));
-  const effect={group,ring,dust,fireball,flash,light,cloud,water,age:0,candidates,damageIndex:0,flattened:false,blastStage:0,playerDistance:distance,playerHit:false};
+  const effect={group,ring,dust,fireball,smoke,flash,light,cloud,water,age:0,candidates,damageIndex:0,flattened:false,blastStage:0,playerDistance:distance,playerHit:false};
   nuclearEffects.push(effect);
   while(nuclearEffects.length>4)disposeNuclearEffect(nuclearEffects.shift());
   blastFlash=1;
@@ -773,10 +808,17 @@ function updateNuclearEffects(dt){
     effect.ring.material.opacity=.9*Math.max(0,1-age/1.25);
     effect.dust.scale.setScalar(Math.max(1,radius*.75));
     effect.dust.material.opacity=.55*Math.max(0,1-age/2.8);
-    const fireballRadius=age<.65?70*(1-Math.exp(-age*6)):70*Math.exp(-(age-.65)*1.8);
-    effect.fireball.scale.setScalar(Math.max(.01,fireballRadius));
-    effect.fireball.material.opacity=.8*Math.max(0,1-Math.max(0,age-.6)/1.6);
-    effect.fireball.material.color.setHex(age<.25?0xfff4cf:age<.7?0xffc26d:0x9d4c2f);
+    const dummy=new THREE.Object3D();
+    dummy.quaternion.copy(camera.quaternion);
+    const fireRadius=age<.45?82*(1-Math.exp(-age*8)):82*Math.exp(-(age-.45)*2.6);
+    effect.fireball.material.opacity=.7*Math.max(0,1-Math.max(0,age-.45)/.9);
+    for(let j=0;j<28;j++){
+      const a=j*2.399963,b=Math.acos(1-2*(j+.5)/28),r=fireRadius*.55;
+      dummy.position.set(Math.sin(b)*Math.cos(a)*r,Math.max(7,fireRadius*.65+Math.cos(b)*r),Math.sin(b)*Math.sin(a)*r);
+      dummy.scale.setScalar(Math.max(.01,fireRadius*(.43+(j%5)*.055)));
+      dummy.updateMatrix();effect.fireball.setMatrixAt(j,dummy.matrix);
+    }
+    effect.fireball.instanceMatrix.needsUpdate=true;
     effect.flash.scale.setScalar(120+age*120);
     effect.flash.material.opacity=Math.max(0,1-age*2.8);
     effect.light.intensity=age<1.3?65*Math.exp(-age*4):0;
@@ -790,27 +832,31 @@ function updateNuclearEffects(dt){
       }
     }
     const rise=Math.min(1,age/13);
-    for(const item of effect.cloud){
-      const swirl=item.angle+rise*.85+Math.sin(age*.6+item.phase)*.13;
+    for(let j=0;j<effect.cloud.length;j++){
+      const item=effect.cloud[j];
+      const swirl=item.angle+rise*.32+Math.sin(age*.42+item.phase)*.16;
       let radial,height;
       if(item.type==='cap'){
-        radial=(40+item.radial*115)*(.25+rise*.75);
-        height=110+rise*330+(1-item.radial)*45+Math.sin(item.phase+age*.9)*8;
+        radial=(25+item.radial*145)*(.18+rise*.82);
+        height=75+rise*330+(1-item.radial)*90+(item.level-.5)*85+Math.sin(item.phase+age*.5)*12;
       }else if(item.type==='rim'){
-        radial=(115+item.radial*55)*(.25+rise*.75);
-        height=115+rise*290+Math.sin(item.phase+age*.7)*12;
+        radial=(100+item.radial*85)*(.18+rise*.82);
+        height=65+rise*300+(item.level-.5)*55+Math.sin(item.phase+age*.6)*16;
       }else if(item.type==='stem'){
-        radial=(12+item.radial*26)*(.4+rise*.6);
-        height=20+((item.level+.5)/12)*(115+rise*300)+Math.sin(item.phase+age)*5;
+        radial=(8+item.radial*32)*(.55+rise*.45);
+        height=12+item.level*(165+rise*360)+Math.sin(item.phase+age*.7)*7;
       }else{
-        radial=(55+item.radial*170)*Math.min(1,age/2.4);
-        height=6+item.radial*16+Math.sin(item.phase+age)*3;
+        radial=(36+item.radial*195)*Math.min(1,age/2.8);
+        height=5+item.radial*23+Math.sin(item.phase+age*.7)*4;
       }
-      item.sprite.position.set(Math.cos(swirl)*radial,height,Math.sin(swirl)*radial);
-      const scale=item.size*(.45+rise*.75);
-      item.sprite.scale.set(scale,scale,1);
-      item.sprite.material.opacity=Math.max(0,(item.type==='ground'?.43:item.type==='rim'?.66:.6)*Math.min(1,age/(item.type==='ground'?.4:1.3))*(1-Math.max(0,age-31)/11));
+      const reveal=Math.min(1,age/(item.type==='ground'?.5:item.type==='stem'?.85:1.7));
+      const fade=Math.max(0,1-Math.max(0,age-32)/10);
+      const scale=item.size*(.38+rise*.9)*reveal*fade;
+      dummy.position.set(Math.cos(swirl)*radial,height,Math.sin(swirl)*radial);
+      dummy.scale.setScalar(Math.max(.001,scale));dummy.updateMatrix();
+      effect.smoke.setMatrixAt(j,dummy.matrix);
     }
+    effect.smoke.instanceMatrix.needsUpdate=true;
     if(effect.damageIndex<effect.candidates.length&&age>=.15){
       // Cut a few tall buildings into sections before the broad flattening
       // pass. Spreading this over frames avoids a long main-thread stall.

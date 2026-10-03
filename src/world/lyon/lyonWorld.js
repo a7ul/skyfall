@@ -139,8 +139,14 @@ export async function createLyonWorld(scene,onProgress=()=>{},renderer,camera){
   }
   function collapseBuildingAt(hit,{replay=true,force=false}={}){
     if(!hit?.object?.isMesh)return null;
-    const building=buildingIndex.find(hit.point.x,hit.point.z,force?0:hit.point.y,force?3:7);
-    if(!building)return null;
+    // Photogrammetry facades and OSM footprints can differ by several metres.
+    // Match in plan first; source roof heights are often also quite different.
+    let building=buildingIndex.find(hit.point.x,hit.point.z,0,force?5:9);
+    if(!building&&!force&&hit.point.y>7&&(hit.point.y>18||Math.abs(hit.face?.normal?.y??0)<.72)){
+      const {x,z,y}=hit.point,half=8;
+      building={id:`mesh-${damageId+1}`,height:y+8,polygon:[[x-half,z-half],[x+half,z-half],[x+half,z+half],[x-half,z+half]],minX:x-half,maxX:x+half,minZ:z-half,maxZ:z+half,collapsed:false};
+    }
+    if(!building||building.collapsed)return null;
     const centerX=(building.minX+building.maxX)/2,centerZ=(building.minZ+building.maxZ)/2;
     const visibleTop=visualHeight(centerX,centerZ);
     building.top=Math.max(building.height,visibleTop&&visibleTop>2?visibleTop:0);
@@ -150,7 +156,15 @@ export async function createLyonWorld(scene,onProgress=()=>{},renderer,camera){
     // If the OSM footprint misses the photomesh facade, keep the local-hit
     // behavior instead of hiding collision for a building still on screen.
     rememberGeometry(hit.object);
-    const fragments=fractureMesh(hit.object,point,radius,{building});
+    let fragments=fractureMesh(hit.object,point,radius,{building,footprintMargin:typeof building.id==='string'?4.5:2.2});
+    if(!fragments.length&&building.id>=0){
+      // A footprint can still miss a slanted mesh facade. Use the struck
+      // patch as a local structure proxy so the hit does not merely scorch.
+      const {x,z,y}=hit.point,half=9;
+      const proxy={...building,polygon:[[x-half,z-half],[x+half,z-half],[x+half,z+half],[x-half,z+half]],minX:x-half,maxX:x+half,minZ:z-half,maxZ:z+half,top:Math.max(y+8,building.top)};
+      fragments=fractureMesh(hit.object,hit.point,20,{building:proxy,footprintMargin:4.5});
+      if(fragments.length)building=proxy;
+    }
     if(!fragments.length)return null;
     building.collapsed=true;
     const site={id:++damageId,point,radius,building};

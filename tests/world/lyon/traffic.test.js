@@ -1,6 +1,6 @@
 import {test,expect} from 'bun:test';
 import {easeTurnaroundDistance} from '../../../src/world/lyon/traffic.js';
-import {createTraffic} from '../../../src/world/lyon/traffic.js';
+import {createTraffic,MAX_RENDERED_VEHICLES} from '../../../src/world/lyon/traffic.js';
 import * as THREE from 'three';
 
 test('cars slow smoothly at route ends before reversing',()=>{
@@ -26,4 +26,16 @@ test('a city blast affects local traffic and pedestrians until sortie reset',asy
   traffic.reset();
   expect(traffic.activePeopleCount).toBe(1);
   expect(traffic.findRayHit(origin,direction,20)).not.toBeNull();
+});
+
+test('only the nearest 200 road vehicles occupy render instances',async()=>{
+  const scene=new THREE.Scene();
+  const routes=Array.from({length:250},(_,i)=>({name:`road ${i}`,speed:8,points:[[i*10,1.4,0],[i*10,1.4,50],[i*10,1.4,100]]}));
+  const traffic=await createTraffic(scene,'test',async()=>({json:async()=>({routes})}));
+  traffic.update(0,new THREE.Vector3(0,30,30));
+  expect(traffic.count).toBe(500);
+  expect(traffic.visibleCount).toBe(MAX_RENDERED_VEHICLES);
+  expect(scene.children.filter(child=>child.isInstancedMesh).slice(0,24).filter((_,i)=>i%4===0).reduce((total,mesh)=>total+mesh.count,0)).toBe(MAX_RENDERED_VEHICLES);
+  traffic.update(0,new THREE.Vector3(100000,30,30));
+  expect(traffic.visibleCount).toBe(0);
 });
