@@ -9,7 +9,10 @@ export const AIRCRAFT = [
   {id:'f22', label:'F-22 RAPTOR', role:'STEALTH AIR SUPERIORITY', origin:'USAF · TWIN ENGINE', speed:1.08, turn:1.0, model:'f-22.glb', length:14.4, nozzles:[[-.62,-.79,5.35,.3],[.62,-.79,5.35,.3]]},
   {id:'f35', label:'F-35 LIGHTNING II', role:'MULTIROLE STRIKE', origin:'USAF · SINGLE ENGINE', speed:.98, turn:1.06, model:'f-35.glb', length:12.8, nozzles:[[0,-.62,5.32,.31]]},
   {id:'su57', label:'SU-57 FELON', role:'HIGH AGILITY INTERCEPTOR', origin:'VKS · TWIN ENGINE', speed:1.13, turn:1.14, model:'su-57.glb', length:15.1, nozzles:[[-1.19,.04,6.1,.34],[1.19,.04,6.1,.34]]},
-  {id:'su35', label:'SU-35 FLANKER-E', role:'LONG RANGE MULTIROLE', origin:'VKS · TWIN ENGINE', speed:1.02, turn:1.10, model:'su-35.glb', length:16.1, exhaustToeIn:.035, nozzles:[[-1.02,-1.06,6.53,.33],[1.02,-1.06,6.53,.33]]}
+  {id:'su35', label:'SU-35 FLANKER-E', role:'LONG RANGE MULTIROLE', origin:'VKS · TWIN ENGINE', speed:1.02, turn:1.10, model:'su-35.glb', length:16.1, exhaustToeIn:.035, nozzles:[[-1.02,-1.06,6.53,.33],[1.02,-1.06,6.53,.33]]},
+  {id:'f15', label:'F-15E STRIKE EAGLE', role:'HEAVY STRIKE', origin:'USAF · TWIN ENGINE', speed:1.05, turn:.94, model:'f-15.glb', length:16, nozzles:[[-.64,-.78,7.05,.34],[.64,-.78,7.05,.34]]},
+  {id:'f16', label:'F-16 FIGHTING FALCON', role:'LIGHT MULTIROLE', origin:'USAF · SINGLE ENGINE', speed:1.0, turn:1.17, model:'f-16.glb', length:12.8, nozzles:[[0,-.38,5.72,.37]]},
+  {id:'a10', label:'A-10 THUNDERBOLT II', role:'CLOSE AIR SUPPORT', origin:'USAF · TWIN TURBOFAN', speed:.64, turn:.81, model:'a-10.glb', length:13.3, afterburner:false, nozzles:[[-2.15,.42,4.95,.42],[2.15,.42,4.95,.42]]}
 ];
 
 const templates=new Map();
@@ -102,6 +105,14 @@ function makeExhausts(spec){
     const plume=new THREE.Group();
     plume.position.set(x,y,z);
     plume.rotation.y=-Math.sign(x)*(spec.exhaustToeIn||0);
+    if(spec.afterburner===false){
+      // The A-10's turbofans do not have afterburners. Only a faint heat wake
+      // is visible behind the nacelles at higher power settings.
+      const heat=new THREE.Mesh(plumeGeometry(1.5,radius*.9),heatMaterial(exhaustTextures.outer));
+      heat.userData.effect='heat';heat.userData.baseOpacity=.055;plume.add(heat);
+      exhausts.add(plume);
+      continue;
+    }
     const liner=new THREE.Mesh(new THREE.CylinderGeometry(radius*.89,radius*.89,.25,24,1,true),new THREE.MeshBasicMaterial({color:0xd4783e,transparent:true,opacity:.2,depthWrite:false,side:THREE.DoubleSide}));
     liner.geometry.rotateX(Math.PI/2);liner.position.z=-.1;liner.userData.effect='liner';plume.add(liner);
     const throat=new THREE.Mesh(new THREE.CircleGeometry(radius*.78,32),new THREE.MeshBasicMaterial({map:exhaustTextures.throat,transparent:true,opacity:.62,depthWrite:false,blending:THREE.AdditiveBlending,side:THREE.DoubleSide}));
@@ -182,6 +193,14 @@ export function updateAfterburners(jet,throttle,time,airbrake=false){
   const boost=airbrake?0:THREE.MathUtils.clamp((throttle-.8)/.2,0,1);
   const intensity=cruise*(.4+.6*boost);
   for(const exhaust of jet?.userData.afterburners||[]){
+    if(exhaust.children[0]?.children[0]?.userData.effect==='heat'){
+      exhaust.visible=throttle>.35;
+      for(const plume of exhaust.children){
+        plume.scale.z=.55+throttle*.45;
+        plume.children[0].material.opacity=.015+throttle*.04;
+      }
+      continue;
+    }
     exhaust.visible=cruise>.01;
     if(!exhaust.visible)continue;
     for(let index=0;index<exhaust.children.length;index++){

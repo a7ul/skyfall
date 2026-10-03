@@ -32,7 +32,7 @@ let lastDebug=0;
 if(debugOutput){debugOutput.id='skyfall-debug';debugOutput.hidden=true;document.body.appendChild(debugOutput);}
 
 function setRadio(message){radioText=message;radioTime=elapsed;$('radio').textContent=message;}
-function updateJetOptions(){ui.options.innerHTML='';AIRCRAFT.forEach((spec,i)=>{const b=document.createElement('button');b.className='jet-option'+(selected===i?' active':'');b.innerHTML=`<small>0${i+1} / ${spec.role.split(' ')[0]}</small><strong>${spec.label}</strong>`;b.onclick=()=>{selected=i;audio.click();updateJetOptions();setPreviewJet();};ui.options.appendChild(b)});const a=AIRCRAFT[selected];ui.count.textContent=`0${selected+1} / 04`;ui.detail.textContent=`${a.origin}  /  ${a.role}  /  SPEED ${Math.round(a.speed*100)}  /  AGILITY ${Math.round(a.turn*100)}`;}
+function updateJetOptions(){ui.options.innerHTML='';AIRCRAFT.forEach((spec,i)=>{const b=document.createElement('button');b.className='jet-option'+(selected===i?' active':'');b.innerHTML=`<small>${String(i+1).padStart(2,'0')} / ${spec.role.split(' ')[0]}</small><strong>${spec.label}</strong>`;b.onclick=()=>{selected=i;audio.click();updateJetOptions();setPreviewJet();};ui.options.appendChild(b)});const a=AIRCRAFT[selected];ui.count.textContent=`${String(selected+1).padStart(2,'0')} / ${String(AIRCRAFT.length).padStart(2,'0')}`;ui.detail.textContent=`${a.origin}  /  ${a.role}  /  SPEED ${Math.round(a.speed*100)}  /  AGILITY ${Math.round(a.turn*100)}`;}
 function setPreviewJet(){if(previewJet)removeObject(previewJet);previewJet=createJet(AIRCRAFT[selected],2.15);previewJet.position.set(0,180,300);previewJet.rotation.set(.02,-.18,-.12);scene.add(previewJet);}
 
 async function init(){
@@ -107,7 +107,7 @@ function updateFlight(dt){
   if(c.missile&&!gamepadWasPressed)fireMissile();gamepadWasPressed=!!c.missile;
   if(c.bomb&&!bombWasPressed)dropBomb(false);bombWasPressed=!!c.bomb;
   if(c.nuke&&!nukeWasPressed)dropBomb(true);nukeWasPressed=!!c.nuke;
-  audio.update(throttle,speed);
+  audio.update(throttle,speed,spec.afterburner!==false);
 }
 function findTarget(){
   const clearCar=car=>{
@@ -896,7 +896,7 @@ function updateHud(){
   const armed=bombProjectiles.find(bomb=>bomb.nuclear&&bomb.armed);
   $('nuke-countdown').classList.toggle('hidden',!armed);
   if(armed)$('nuke-countdown').textContent=`SPECIAL WEAPON ARMED · ${Math.max(0,armed.fuse).toFixed(1)} S · CLEAR AREA`;
-  $('flight-state').textContent=agl<35&&forward.y<-.04?'TERRAIN WARNING':airbrake?'AIR BRAKE':speed<42?'STALL WARNING':Math.abs(roll)>1.1?'HIGH BANK ANGLE':throttle>.88?'AFTERBURNER':'FLIGHT STABLE';
+  $('flight-state').textContent=agl<35&&forward.y<-.04?'TERRAIN WARNING':airbrake?'AIR BRAKE':speed<42?'STALL WARNING':Math.abs(roll)>1.1?'HIGH BANK ANGLE':throttle>.88&&AIRCRAFT[selected].afterburner!==false?'AFTERBURNER':'FLIGHT STABLE';
   updateRadar();
   if(mode==='mission'){
     const waypoint=phase===0?radars.find(r=>r.alive)?.position:phase===1?enemies.find(e=>e.alive)?.position:extraction?.position;

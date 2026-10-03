@@ -2,7 +2,7 @@
 
 **A full air-combat game in your browser.** Fly modern fighter jets, take on air and ground targets, and explore a real 3D city. This first playable build gives you a story mission and free flight over Lyon.
 
-**Lyon is going dark.** A rogue air-defense network has cut the evacuation route through the city. You are Viper One, the last fighter close enough to break the signal, clear the skies, and open a way out. Choose an F-22, F-35, Su-57, or Su-35 and take the fight from the open sky down among the rooftops.
+**Lyon is going dark.** A rogue air-defense network has cut the evacuation route through the city. You are Viper One, the last fighter close enough to break the signal, clear the skies, and open a way out. Choose from seven aircraft, including the F-22, F-35, F-15E, F-16, Su-57, Su-35, and A-10, and take the fight from the open sky down among the rooftops.
 
 [![F-22 above Lyon, promotional artwork](docs/art/f22-over-lyon.jpg)](https://github.com/a7ul/skyfall/releases/download/assets/f22-over-lyon.png)
 
@@ -22,7 +22,7 @@ Pick a jet and explore without a mission timer. Skim the river, weave between bl
 | --- | --- | --- |
 | Separate pitch, roll, and yaw; full rolls and loops; air brake and throttle control; animated control surfaces. | Lyon's textured 3D city streams around you, with finer detail near the aircraft, moving road traffic, and pedestrians. | Cannon, lock-on or unguided missiles, gravity bombs, and a stylized nuclear blast; impact cues, damage, smoke, fire, and debris. |
 
-The four aircraft have different flight tuning. Chase, cockpit, and cinematic views let you change how close you feel to the jet and the streets.
+The seven aircraft have different flight tuning. The F-16 is the nimble light fighter, the F-15E is a heavier strike platform, and the slower A-10 is built for low-altitude ground attack. Chase, cockpit, and cinematic views let you change how close you feel to the jet and the streets.
 
 ## Actual gameplay
 
@@ -89,7 +89,7 @@ This is a **playable prototype** with one complete mission and free flight. Flig
 
 The visible city is the [Métropole de Lyon 2023 photomesh](https://www.data.gouv.fr/datasets/photomaillage-3d-de-la-metropole-de-lyon), Licence Ouverte / Open Licence 2.0. [OpenStreetMap contributors](https://www.openstreetmap.org/copyright), ODbL, provide road routes and building footprints used for traffic and an approximate collision grid. The mesh streams progressively, with finer tiles near low-altitude flight and lower detail farther away. OSM collision heights can differ from the visible photomesh. See the [city source notes](docs/data/city-source-trials.md).
 
-Local development uses Vite to proxy public Lyon tiles and convert their legacy glTF payloads. The large city mesh is not committed to this repo. The four fighter models and HDR sky use Git LFS. Run `bun test` for flight, combat, and world tests; see the [gameplay design notes](docs/design/gameplay-design.md) for tuning and limitations.
+Local development uses Vite to proxy public Lyon tiles and convert their legacy glTF payloads. The large city mesh is not committed to this repo. The seven aircraft models and HDR sky use Git LFS. Run `bun test` for flight, combat, and world tests; see the [gameplay design notes](docs/design/gameplay-design.md) for tuning and limitations.
 
 ### GitHub Pages
 

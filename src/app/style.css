@@ -30,3 +30,4 @@
 .pause-controls p{margin-top:14px;color:#83a59f;font-size:9px}
 @media(max-width:800px){#controls-button{left:12px;bottom:111px}.hud-help{display:none}}
 @media(max-width:520px){.control-grid{grid-template-columns:1fr}.overlay-card{padding:20px}.overlay-card h2{font-size:40px}}
+@media(max-height:1000px){.menu-content{padding-top:3vh}h1{font-size:clamp(72px,8vw,130px);margin:18px 0 22px}.mission-card{margin-top:20px;padding:14px 18px}.mission-card strong{margin:12px 0 6px}.card-tags{margin-top:12px}.jet-select{margin-top:18px}.jet-option{min-height:62px}.jet-option strong{margin-top:6px;font-size:17px}.menu-actions{margin-top:15px}}

@@ -102,7 +102,7 @@ export class FlightAudio {
     return this.volume;
   }
 
-  update(throttle, speed) {
+  update(throttle, speed, afterburner = true) {
     this.throttle = throttle;
     this.speed = speed;
     if (!this.engine) return;
@@ -112,7 +112,7 @@ export class FlightAudio {
     this.engine.filter.frequency.setTargetAtTime(1250 + throttle * 1900 + speed * 3, now, .14);
     this.engine.level.gain.setTargetAtTime(.62 + throttle * .35, now, .14);
     this.boost.source.playbackRate.setTargetAtTime(.8 + throttle * .38, now, .18);
-    this.boost.level.gain.setTargetAtTime(.08 + boost * .62, now, .15);
+    this.boost.level.gain.setTargetAtTime(afterburner ? .08 + boost * .62 : 0, now, .15);
   }
 
   play(name, gain, options = {}) {
