@@ -84,30 +84,40 @@ export async function createHelsinkiWorld(scene,onProgress=()=>{}){
       scene.add(group);loaded.set(key,{group,detail});
     }catch(error){console.warn('Helsinki mesh tile failed',tile.file,error);}finally{pending.delete(key);}
   }
+  async function warmup(position,onWarmup=()=>{}){
+    const nearby=[...manifest.tiles]
+      .sort((a,b)=>Math.hypot(a.x-position.x,a.z-position.z)-Math.hypot(b.x-position.x,b.z-position.z))
+      .slice(0,16);
+    for(let i=0;i<nearby.length;i++){
+      const tile=nearby[i];
+      const distance=Math.hypot(tile.x-position.x,tile.z-position.z);
+      await loadTile(tile,!!tile.detail&&distance<400);
+      onWarmup(i+1,nearby.length);
+    }
+  }
   function update(dt,position){
     oceanNormal.offset.x=(oceanNormal.offset.x+dt*.0017)%1;
     oceanNormal.offset.y=(oceanNormal.offset.y+dt*.0011)%1;
     if(!position)return;
     traffic.update(dt,position);
-    nextCheck-=dt;if(nextCheck>0)return;nextCheck=.3;
-    const nearRadius=position.y>850?570:750;
+    nextCheck-=dt;if(nextCheck>0)return;nextCheck=.12;
+    const nearRadius=position.y>850?950:1350;
     const candidates=[];
     for(const tile of manifest.tiles){
       const distance=Math.hypot(tile.x-position.x,tile.z-position.z);
       const existing=loaded.get(tile.file);
-      if(distance>1050){
+      if(distance>1750){
         if(existing){disposeTile(existing.group);loaded.delete(tile.file);}
         continue;
       }
       if(distance>nearRadius)continue;
-      const wantsDetail=!!tile.detail&&distance<(existing?.detail?390:260)&&position.y<(existing?.detail?430:270);
+      const wantsDetail=!!tile.detail&&distance<(existing?.detail?600:450)&&position.y<(existing?.detail?700:550);
       if(existing?.detail===wantsDetail||pending.has(tile.file))continue;
       candidates.push({tile,distance,wantsDetail});
     }
-    if(pending.size||!candidates.length)return;
+    if(pending.size>=2||!candidates.length)return;
     candidates.sort((a,b)=>a.distance-b.distance);
-    const {tile,wantsDetail}=candidates[0];
-    loadTile(tile,wantsDetail);
+    for(const {tile,wantsDetail} of candidates.slice(0,2-pending.size))loadTile(tile,wantsDetail);
   }
-  return {sea,city:{get loadedCount(){return overview.length+loaded.size;}},update};
+  return {sea,city:{get loadedCount(){return overview.length+loaded.size;}},update,warmup};
 }
