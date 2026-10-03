@@ -1,0 +1,13 @@
+{
+  "map": "lyon",
+  "format": 1,
+  "coverage": "visited-cache-snapshot",
+  "downloadBase": "https://github.com/a7ul/skyfall/releases/download/assets/",
+  "parts": [
+    "lyon-map-part-01.zip",
+    "lyon-map-part-02.zip",
+    "lyon-map-part-03.zip"
+  ],
+  "files": 3414,
+  "detail": "expanded central flight corridor"
+}

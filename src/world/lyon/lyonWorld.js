@@ -9,7 +9,7 @@ import {fractureMesh} from '../../gameplay/combat/destruction.js';
 import {createBuildingIndex,distanceToFootprint} from './buildings.js';
 import {blastRubbleHeight} from '../../gameplay/combat/nuclearBlast.js';
 
-export async function createLyonWorld(scene,onProgress=()=>{},renderer,camera){
+export async function createLyonWorld(scene,onProgress=()=>{},renderer,camera,mapArchive=null){
   const asset=path=>`${import.meta.env.BASE_URL}${path}`;
   const loader=new THREE.TextureLoader();
   const [sky,lighting,collisionField,collisionBuffer,buildingData]=await Promise.all([
@@ -29,10 +29,11 @@ export async function createLyonWorld(scene,onProgress=()=>{},renderer,camera){
   scene.background=sky;scene.backgroundIntensity=1.02;scene.backgroundRotation.y=skyYaw;
   scene.environment=lighting;scene.environmentIntensity=.8;scene.environmentRotation.y=skyYaw;
   scene.fog=new THREE.FogExp2(0xc5d4dc,.000075);
-  scene.add(new THREE.HemisphereLight(0xe2efff,0xa39682,1.35));
+  const ambient=new THREE.HemisphereLight(0xe2efff,0xa39682,1.35);scene.add(ambient);
   const sun=new THREE.DirectionalLight(0xffe1bc,2.8);sun.position.set(-690,690,-900);scene.add(sun);
 
   const tiles=new TilesRenderer(asset('lyon-photomesh/tileset.json'));
+  if(mapArchive)tiles.registerPlugin({name:'LYON_MAP_ARCHIVE',fetchData:(url,options)=>mapArchive.fetchData(url,options)});
   // The camera gets finer visible tiles. A modest region ahead of the jet
   // loads the next blocks before they cross the frustum.
   tiles.errorTarget=9.5;
@@ -91,7 +92,12 @@ export async function createLyonWorld(scene,onProgress=()=>{},renderer,camera){
     loadedScenes.delete(tileScene);
     pendingDamageScenes.delete(tileScene);
   });
-  tiles.addEventListener('load-error',event=>console.warn('Lyon tile failed',event));
+  let missingTileErrors=0;
+  tiles.addEventListener('load-error',event=>{
+    missingTileErrors++;
+    if(missingTileErrors<=3)console.warn('Lyon map tile unavailable',event);
+    else if(missingTileErrors===4)console.warn('Further unavailable map tiles are suppressed. The selected pack may cover only the central demo area.');
+  });
   scene.add(tiles.group);
   const traffic=await createTraffic(scene,asset('assets/city/lyon/traffic.json'));
   const collisionHeight=(x,z)=>{
@@ -276,11 +282,19 @@ export async function createLyonWorld(scene,onProgress=()=>{},renderer,camera){
       applyStoredDamage(tileScene);
     }
   }
+  function dispose(){
+    traffic.destroy();
+    scene.remove(tiles.group,ambient,sun);
+    tiles.dispose();
+    if(scene.background===sky)scene.background=null;
+    if(scene.environment===lighting)scene.environment=null;
+    sky.dispose();lighting.dispose();
+  }
   return {
     tiles,traffic,collisionHeight,visualHeight,raycastCity,collapseBuildingAt,blastBuildingCandidates,blastRubbleSites,flattenArea,replayDamage,resetDamage,ready,
     city:{get loadedCount(){return loaded;}},
-    update,updateTiles,
-    get quality(){const sorted=[...frameSamples].sort((a,b)=>a-b);return {errorTarget:tiles.errorTarget,frameMs:frameAverage,p95FrameMs:sorted[Math.floor(sorted.length*.95)]??0,cacheMB:Math.round(tiles.lruCache.cachedBytes/1048576),cacheLimitMB:Math.round(tiles.lruCache.maxBytesSize/1048576),deviceMemoryGB:navigator.deviceMemory??null,...tiles.stats};},
+    update,updateTiles,dispose,
+    get quality(){const sorted=[...frameSamples].sort((a,b)=>a-b);return {errorTarget:tiles.errorTarget,frameMs:frameAverage,p95FrameMs:sorted[Math.floor(sorted.length*.95)]??0,cacheMB:Math.round(tiles.lruCache.cachedBytes/1048576),cacheLimitMB:Math.round(tiles.lruCache.maxBytesSize/1048576),deviceMemoryGB:navigator.deviceMemory??null,missingTileErrors,...tiles.stats};},
     setResolution
   };
 }

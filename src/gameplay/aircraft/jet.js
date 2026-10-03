@@ -8,7 +8,7 @@ import {prepareControlSurfaces,bindControlSurfaces} from './controlSurfaces.js';
 export const AIRCRAFT = [
   {id:'f22', label:'F-22 RAPTOR', role:'STEALTH AIR SUPERIORITY', origin:'USAF · TWIN ENGINE', speed:1.08, turn:1.0, model:'f-22.glb', length:14.4, nozzles:[[-.62,-.79,5.35,.3],[.62,-.79,5.35,.3]]},
   {id:'f35', label:'F-35 LIGHTNING II', role:'MULTIROLE STRIKE', origin:'USAF · SINGLE ENGINE', speed:.98, turn:1.06, model:'f-35.glb', length:12.8, nozzles:[[0,-.62,5.32,.31]]},
-  {id:'su57', label:'SU-57 FELON', role:'HIGH AGILITY INTERCEPTOR', origin:'VKS · TWIN ENGINE', speed:1.13, turn:1.14, model:'su-57.glb', length:15.1, nozzles:[[-1.19,.04,6.1,.34],[1.19,.04,6.1,.34]]},
+  {id:'su57', label:'SU-57 FELON', role:'HIGH AGILITY INTERCEPTOR', origin:'VKS · TWIN ENGINE', speed:1.13, turn:1.14, model:'su-57.glb', length:15.1, nozzles:[[-1.13,.04,6.5,.32],[1.13,.04,6.5,.32]]},
   {id:'su35', label:'SU-35 FLANKER-E', role:'LONG RANGE MULTIROLE', origin:'VKS · TWIN ENGINE', speed:1.02, turn:1.10, model:'su-35.glb', length:16.1, exhaustToeIn:.035, nozzles:[[-1.02,-1.06,6.53,.33],[1.02,-1.06,6.53,.33]]},
   {id:'f15', label:'F-15E STRIKE EAGLE', role:'HEAVY STRIKE', origin:'USAF · TWIN ENGINE', speed:1.05, turn:.94, model:'f-15.glb', length:16, nozzles:[[-.64,-.78,7.05,.34],[.64,-.78,7.05,.34]]},
   {id:'f16', label:'F-16 FIGHTING FALCON', role:'LIGHT MULTIROLE', origin:'USAF · SINGLE ENGINE', speed:1.0, turn:1.17, model:'f-16.glb', length:12.8, nozzles:[[0,-.38,5.72,.37]]},
@@ -134,6 +134,14 @@ function makeExhausts(spec){
   return exhausts;
 }
 
+export function retractLandingGear(model){
+  const extended=[];
+  model.traverse(object=>{
+    if(/-landingOn(?:Light)?_\d+$/i.test(object.name))extended.push(object);
+  });
+  for(const object of extended)object.removeFromParent();
+}
+
 async function loadOne(spec){
   const gltf=await loader.loadAsync(`${import.meta.env.BASE_URL}assets/aircraft/${spec.model}`);
   const model=gltf.scene;
@@ -144,6 +152,9 @@ async function loadOne(spec){
   const dimensions=bounds.getSize(new THREE.Vector3());
   const scale=spec.length/dimensions.x;
   const airframe=new THREE.Group();
+  // Preserve the model's original center used by the hand-aligned exhausts.
+  // Removing extended gear before measuring bounds shifts the jet vertically.
+  retractLandingGear(model);
   model.position.sub(center);
   model.updateMatrixWorld(true);
   airframe.add(model);
@@ -187,11 +198,11 @@ export function createJet(spec,scale=1){
   return root;
 }
 
-export function updateAfterburners(jet,throttle,time,airbrake=false){
-  // Cruise keeps a short, faint plume; the long bright plume grows above 80% throttle.
-  const cruise=THREE.MathUtils.clamp((throttle-.18)/.12,0,1);
-  const boost=airbrake?0:THREE.MathUtils.clamp((throttle-.8)/.2,0,1);
-  const intensity=cruise*(.4+.6*boost);
+export function updateAfterburners(jet,throttle,time,afterburner=false){
+  // Dry thrust has a faint nozzle glow. The bright plume is a held boost.
+  const boost=afterburner?1:0;
+  const cruise=boost?1:THREE.MathUtils.clamp((throttle-.18)/.12,0,1);
+  const intensity=cruise*(.14+.86*boost);
   for(const exhaust of jet?.userData.afterburners||[]){
     if(exhaust.children[0]?.children[0]?.userData.effect==='heat'){
       exhaust.visible=throttle>.35;
@@ -206,13 +217,13 @@ export function updateAfterburners(jet,throttle,time,airbrake=false){
     for(let index=0;index<exhaust.children.length;index++){
       const plume=exhaust.children[index];
       const flicker=1+.025*Math.sin(time*37+index*2.1)+.012*Math.sin(time*79-index);
-      plume.scale.z=(.52+boost*.48)*flicker;
-      plume.scale.x=plume.scale.y=.84+boost*.16;
+      plume.scale.z=(.28+boost*.72)*flicker;
+      plume.scale.x=plume.scale.y=.74+boost*.26;
       for(const mesh of plume.children){
         const effect=mesh.userData.effect;
         const pulse=1+.045*Math.sin(time*(effect==='core'?53:31)+index*2.7);
-        if(effect==='liner')mesh.material.opacity=cruise*(.07+.16*boost)*pulse;
-        else if(effect==='throat')mesh.material.opacity=cruise*(.15+.47*boost)*pulse;
+        if(effect==='liner')mesh.material.opacity=cruise*(.035+.195*boost)*pulse;
+        else if(effect==='throat')mesh.material.opacity=cruise*(.12+.5*boost)*pulse;
         else{mesh.material.opacity=mesh.userData.baseOpacity*intensity*pulse;mesh.rotation.z=.11*Math.sin(time*(effect==='core'?6.7:4.3)+index);}
       }
     }

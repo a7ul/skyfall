@@ -5,15 +5,17 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
+    "map:pack:lyon": "python3 scripts/maps/build_lyon_pack.py",
     "build": "vite build",
     "preview": "vite preview --host 0.0.0.0"
   },
   "dependencies": {
     "3d-tiles-renderer": "^0.5.3",
-    "gltf-pipeline": "^4.3.1",
+    "@zip.js/zip.js": "^2.23.0",
     "three": "0.186.1"
   },
   "devDependencies": {
+    "gltf-pipeline": "^4.3.1",
     "vite": "^7.1.0"
   }
 }

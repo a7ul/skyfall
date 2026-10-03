@@ -17,31 +17,86 @@
 
   <main id="menu" class="menu">
     <div class="menu-shade"></div>
-    <div class="topline"><span class="mark">S<span>///</span>P</span><span>TACTICAL FLIGHT SIMULATION <b>·</b> WEBGPU EDITION</span><span class="version">BUILD 0.1 / 2026</span></div>
     <div class="menu-content">
-      <div class="eyebrow"><i></i> OPERATIONAL BRIEFING <span>01 / 01</span></div>
+      <div class="menu-layout"><div class="menu-hero">
       <h1>SKYFALL<br/><em>PROTOCOL</em></h1>
-      <p class="intro">At 17:00, Sable seized Lyon's evacuation frequencies and trapped Mercy Seven's relief convoy beside the Rhône. The convoy carries a flight recorder proving Sable shot down a relief plane. Viper One is the last fighter in range.</p>
-      <div class="mission-card">
+      <div class="hero-preview" id="hero-preview" aria-live="polite"><span>LYON · MAP PREVIEW</span><strong id="hero-aircraft-name">SELECT AN AIRCRAFT</strong></div>
+      <p class="hero-deck">A full air-combat game in your browser. Seven modern fighters. One city in the crossfire.</p>
+      <table class="hero-facts"><tbody><tr><th scope="row">BUILT WITH</th><td>WEBGPU</td></tr><tr><th scope="row">LOCAL MAPS</th><td>CHROME FILE SYSTEM ACCESS API</td></tr><tr><th scope="row">BUILD VERSION</th><td>0.1 / 2026</td></tr></tbody></table>
+      <p class="intro hidden" id="mission-intro">At 17:00, Sable seized Lyon's evacuation frequencies and trapped Mercy Seven's relief convoy beside the Rhône. The convoy carries a flight recorder proving Sable shot down a relief plane. Viper One is the last fighter in range.</p>
+      </div><div class="menu-flow">
+      <div class="eyebrow"><i></i> FLIGHT SETUP <span>THREE STEPS TO LAUNCH</span></div>
+      <section class="map-setup" aria-labelledby="map-setup-title">
+        <div class="select-title" id="map-setup-title"><b>01</b> CHOOSE MAP <span>01 AVAILABLE</span></div>
+        <p class="step-hint">Choose where you want to fly. Set up the map before selecting a sortie.</p>
+        <button class="map-launch" id="map-choice" type="button" aria-haspopup="dialog"><span class="map-choice-state" id="map-choice-state">SELECT MAP</span><b>↗</b></button>
+      </section>
+      <section class="mode-setup locked" id="mode-setup" aria-labelledby="mode-setup-title"><div class="select-title" id="mode-setup-title"><b>02</b> MISSION OR FREE FLIGHT <span>UNLOCKS AFTER MAP</span></div><p class="step-hint">Pick the campaign mission or explore Lyon at your own pace.</p><div class="mode-options"><button id="mode-mission" type="button" disabled><small>CAMPAIGN / MISSION 01</small><strong>MISSION</strong><span>Four acts · bandits · rescue corridor</span></button><button id="mode-free" type="button" disabled><small>OPEN AIRSPACE</small><strong>FREE FLIGHT</strong><span>Explore and practice with unlimited weapons</span></button></div></section>
+      <div class="mission-card hidden" id="mission-card">
         <div class="card-top"><span>CAMPAIGN / MISSION 01</span><span>17:00 LOCAL · LYON</span></div>
         <strong>OPERATION NIGHTGLASS</strong>
         <p>Four acts across one sortie: silence Sable's jammers, break an aerial ambush, face their commander Wraith, and guide Mercy Seven through the exit corridor.</p>
         <div class="card-tags"><span>◈ 4 ACTS</span><span>◇ BANDIT ENGAGEMENTS</span><span>◎ RESCUE CORRIDOR</span></div>
       </div>
-      <div class="jet-select"><div class="select-title">SELECT AIRCRAFT <span id="jet-count">01 / 07</span></div><div id="jet-options" class="jet-options"></div><div id="jet-detail" class="jet-detail"></div></div>
-      <div class="menu-actions"><button id="start-mission" class="primary loading" disabled><span id="mission-launch-label">LOADING…</span><b>⟳</b></button><button id="start-free" class="secondary loading" disabled><span id="free-launch-label">LOADING…</span><b>⟳</b></button></div>
+      <div class="jet-select locked" id="jet-select"><div class="select-title"><b>03</b> CHOOSE AIRCRAFT <span id="jet-count">UNLOCKS AFTER FLIGHT</span></div><p class="step-hint">Select your jet for this flight.</p><div id="jet-options" class="jet-options"></div><div id="jet-detail" class="jet-detail"></div></div>
+      <div class="menu-actions" id="menu-actions"><button id="start-flight" class="primary" disabled><span id="flight-launch-label">START GAME</span><b>↗</b></button></div>
       <div class="sound-setting"><label for="volume">AUDIO <span id="volume-value">35%</span></label><input id="volume" type="range" min="0" max="100" value="35" aria-label="Audio volume" /><span>M TO MUTE / UNMUTE IN FLIGHT</span></div>
       <p class="requirements" id="gpu-status">CHECKING WEBGPU SUPPORT…</p>
+      </div></div>
     </div>
     <div class="menu-bottom"><span>SCROLL TO REVIEW CONTROLS</span><span>LYON 2023 PHOTOMESH · <a href="https://www.data.gouv.fr/datasets/photomaillage-3d-de-la-metropole-de-lyon" target="_blank" rel="noopener">© MÉTROPOLE DE LYON · OPEN LICENCE 2.0</a> · <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">© OPENSTREETMAP CONTRIBUTORS</a> · <a href="assets/audio/CREDITS.md" target="_blank" rel="noopener">AUDIO CREDITS</a></span></div>
     <div class="controls-preview">
       <h2>FLIGHT SYSTEMS <span>01 / CONTROLS</span></h2>
-      <div><span><b>W / S · ↑ / ↓</b> Nose down / up · hold S for loop</span><span><b>A / D</b> Roll left / right · hold for full roll</span><span><b>Q / E · ← / →</b> Yaw left / right</span><span><b>X + S</b> High alpha on vectoring jets</span><span><b>SHIFT / CTRL</b> Throttle up / down</span><span><b>MOUSE</b> Flight stick (auto centers)</span><span><b>SPACE / CLICK</b> Cannon</span><span><b>F / RIGHT CLICK</b> Missile · free fire or lock</span><span><b>B</b> Gravity bomb</span><span><b>N</b> Nuclear bomb · unlimited in free flight</span><span><b>C / G</b> Camera / hold air brake</span><span><b>P / ESC</b> Pause / controls</span></div>
+      <div><span><b>W / S · ↑ / ↓</b> Nose down / up · hold S for loop</span><span><b>A / D</b> Roll left / right · hold for full roll</span><span><b>Q / E · ← / →</b> Yaw left / right</span><span><b>X + S</b> High alpha on vectoring jets</span><span><b>SHIFT / CTRL</b> Hold boost + throttle up / throttle down</span><span><b>MOUSE</b> Flight stick (auto centers)</span><span><b>SPACE / CLICK</b> Cannon</span><span><b>F / RIGHT CLICK</b> Missile · free fire or lock</span><span><b>B</b> Gravity bomb</span><span><b>N</b> Nuclear bomb · unlimited in free flight</span><span><b>C / G</b> Camera / hold air brake</span><span><b>P / ESC</b> Pause / controls</span></div>
     </div>
   </main>
 
+  <div id="map-dialog" class="map-dialog hidden" role="dialog" aria-modal="true" aria-labelledby="map-dialog-heading">
+    <div class="map-dialog-card">
+      <div class="map-dialog-top"><span id="map-dialog-heading">MAP SETUP</span><button id="map-dialog-close" type="button" aria-label="Close map setup">×</button></div>
+      <div class="map-dialog-track" aria-hidden="true"><i id="map-track-1"></i><i id="map-track-2"></i><i id="map-track-3"></i><i id="map-track-4"></i></div>
+      <section id="map-step-choose" class="map-panel">
+        <small>01 / CHOOSE MAP</small><h2 id="map-choose-title" tabindex="-1">CHOOSE YOUR CITY</h2>
+        <p>Select a city to set up for your flight.</p>
+        <button class="map-city-option" id="select-lyon" type="button"><img src="./docs/screenshots/golden-hour-sun.webp" alt="Gameplay view of Lyon" /><span><strong>LYON, FRANCE</strong><small id="map-choice-detail">2023 PHOTOMESH · CENTRAL DEMO AREA</small></span><b>SELECT ↗</b></button>
+      </section>
+      <section id="map-step-download" class="map-panel">
+        <figure class="map-download-preview"><img src="./docs/screenshots/golden-hour-sun.webp" alt="Gameplay view of a fighter jet over the Lyon photomesh at golden hour" /><figcaption>LYON, FRANCE <span>LIVE GAMEPLAY SNAPSHOT</span></figcaption></figure>
+        <div class="map-download-copy">
+        <small>02 / DOWNLOAD</small><h2 id="map-dialog-title" tabindex="-1">PREPARE LYON</h2>
+        <p>Download every Lyon map ZIP part into the <strong>same folder</strong>. Keep the ZIP files there; the game will unpack them after you choose that folder.</p>
+        <div id="map-downloads" class="map-downloads"><a href="https://github.com/a7ul/skyfall/releases" target="_blank" rel="noopener">OPEN MAP RELEASES ↗</a></div>
+        <button id="map-download-next" class="map-next" type="button">I HAVE THE ZIP FILES <b>↗</b></button>
+        </div>
+      </section>
+      <section id="map-step-folder" class="map-panel hidden">
+        <small>03 / CONNECT FOLDER</small><h2>CHOOSE THE FOLDER</h2>
+        <p>Select the folder containing <strong>all Lyon ZIP parts</strong>. Allow read and write access so the game can unpack the city there.</p>
+        <p id="map-folder-error" class="map-folder-error hidden" role="alert"></p>
+        <div class="map-panel-actions"><button id="map-folder-back" type="button">← BACK</button><button id="map-select" class="map-next" type="button" disabled>CHOOSE MAP FOLDER <b>↗</b></button></div>
+      </section>
+      <section id="map-step-reconnect" class="map-panel hidden">
+        <small>03 / SAVED MAP</small><h2>RECONNECT LYON</h2>
+        <p>Your map folder is saved in this browser. Allow access again to load it without choosing the folder another time.</p>
+        <p id="map-reconnect-error" class="map-folder-error hidden" role="alert"></p>
+        <div class="map-panel-actions"><button id="map-choose-another" type="button">CHOOSE ANOTHER FOLDER</button><button id="map-reconnect" class="map-next" type="button">RECONNECT FOLDER <b>↗</b></button></div>
+      </section>
+      <section id="map-step-loading" class="map-panel hidden">
+        <small>04 / PREPARING</small><h2>BUILDING YOUR CITY</h2>
+        <p id="map-status" role="status">Checking map files…</p>
+        <div id="map-progress" class="map-progress" role="progressbar" aria-label="Map preparation" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i id="map-progress-bar"></i></div>
+        <p class="map-loading-note">The mission and free flight unlock when the city is ready.</p>
+      </section>
+      <section id="map-step-ready" class="map-panel hidden">
+        <small>04 / READY</small><h2>LYON IS READY ✓</h2>
+        <p>The map is connected. City detail loads from your chosen folder while you fly.</p>
+        <button id="map-ready-close" class="map-next" type="button">BACK TO HANGAR <b>↗</b></button>
+      </section>
+    </div>
+  </div>
+
   <div id="hud" class="hud hidden">
-    <div class="hud-top"><div class="hud-brand"><span class="mark">S<span>///</span>P</span><span id="mission-name">OPERATION NIGHTGLASS</span></div><div class="hud-top-right"><span id="mode-label">MISSION 01</span><span id="clock">00:00</span><button id="pause-button" aria-label="Pause">Ⅱ</button></div></div>
+    <div class="hud-top"><div class="hud-brand"><img class="brand-jet" src="/assets/brand/f22-raptor.png" alt="F-22 Raptor" /><span id="mission-name">OPERATION NIGHTGLASS</span></div><div class="hud-top-right"><span id="mode-label">MISSION 01</span><span id="clock">00:00</span><button id="pause-button" aria-label="Pause">Ⅱ</button></div></div>
     <div class="hud-left"><div class="hud-label">MISSION STATUS</div><div id="objective" class="objective"></div><div class="progress"><div id="objective-progress"></div></div><div id="radio" class="radio"><span id="radio-speaker">ECHO / AWACS</span><span id="radio-text"></span></div></div>
     <div id="stage-banner" class="stage-banner hidden"><small id="stage-label"></small><strong id="stage-title"></strong><span id="stage-description"></span></div>
     <div id="ace-status" class="ace-status hidden"><small>PRIORITY TARGET / SABLE COMMANDER</small><strong>WRAITH</strong><div><i id="ace-health"></i></div></div>
@@ -59,10 +114,10 @@
     <div class="hud-bottom"><div class="telemetry"><div class="datum"><small>SPD <span>KTS</span></small><strong id="speed">000</strong></div><div class="datum"><small>ALT <span>FT</span></small><strong id="altitude">0000</strong></div><div class="datum"><small>HDG <span>DEG</span></small><strong id="heading">000</strong></div><div class="datum"><small>THR <span>%</span></small><strong id="throttle">00</strong></div><div class="datum"><small>AGL <span>FT</span></small><strong id="agl">0000</strong></div></div><div class="center-data"><span id="flight-state">FLIGHT STABLE</span><span id="flight-attitude">PITCH +00° · ROLL +00° · YAW 000°</span><span id="camera-state">CHASE CAM</span></div><div class="weapons"><div><small>HULL</small><div class="bar"><i id="health-bar"></i></div><span id="health">100%</span></div><div><small>MSL</small><strong id="missiles">06</strong><span>FOX TWO</span></div><div><small>BMB</small><strong id="bombs">04</strong><span>KEY B</span></div><div><small>NUC</small><strong id="nukes">01</strong><span>KEY N</span></div><div><small>GUN</small><strong id="gun">∞</strong><span>30 MM</span></div></div></div>
     <div class="radar"><div class="radar-ring"></div><div class="radar-ring inner"></div><div class="radar-sweep"></div><div class="radar-center"></div><div id="radar-contacts"></div><span>N</span></div>
     <button id="controls-button" type="button" aria-label="Pause and show all controls"><b>P</b> PAUSE / CONTROLS</button>
-    <div class="hud-help">ROLL THEN PULL · S LOOP · A/D ROLL · Q/E YAW · SHIFT/CTRL THROTTLE · SPACE GUN · F MISSILE · B BOMB · N SPECIAL · HOLD G BRAKE · C VIEW</div>
+    <div class="hud-help">ROLL THEN PULL · S LOOP · A/D ROLL · Q/E YAW · HOLD SHIFT BOOST / CTRL THROTTLE DOWN · SPACE GUN · F MISSILE · B BOMB · N SPECIAL · HOLD G BRAKE · C VIEW</div>
   </div>
 
-  <div id="overlay" class="overlay hidden"><div class="overlay-card"><div class="eyebrow"><i></i><span id="overlay-kicker">FLIGHT PAUSED</span></div><h2 id="overlay-title">SYSTEMS HOLD</h2><p id="overlay-text">Your aircraft is holding position.</p><div id="overlay-stats" class="overlay-stats"></div><div id="mission-log" class="mission-log hidden"><h3>MISSION COMMS</h3><div id="mission-log-entries"></div></div><div id="pause-controls" class="pause-controls hidden"><h3>FLIGHT CONTROLS</h3><div class="control-grid"><span><b>W / ↑</b> Pitch down</span><span><b>S / ↓</b> Pitch up · hold for loop</span><span><b>A</b> Roll left · hold for full roll</span><span><b>D</b> Roll right · hold for full roll</span><span><b>Q / ←</b> Yaw left</span><span><b>E / →</b> Yaw right</span><span><b>X + S</b> High alpha on vectoring jets</span><span><b>SHIFT / CTRL</b> Throttle up / down</span><span><b>MOUSE</b> Pitch / roll</span><span><b>SPACE / LEFT CLICK</b> Cannon</span><span><b>F / RIGHT CLICK</b> Missile · free fire or lock</span><span><b>B</b> Gravity bomb</span><span><b>N</b> Nuclear bomb · 4.5 s fuse</span><span><b>G</b> Hold air brake · release to accelerate</span><span><b>C</b> Camera view</span><span><b>M</b> Mute / unmute</span><span><b>P / ESC</b> Resume</span></div><p>Bank with A or D, then pull with S to turn. Gamepad: left stick pitch / roll · shoulders yaw · triggers throttle · L3 + pull for high alpha · A cannon · B missile · X bomb · Y special</p></div><div class="overlay-actions"><button id="resume-button" class="primary">RESUME FLIGHT <b>↗</b></button><button id="restart-button" class="secondary">RESTART <span>↗</span></button><button id="hangar-button" class="secondary">HANGAR <span>↗</span></button></div></div></div>
+  <div id="overlay" class="overlay hidden"><div class="overlay-card"><div class="eyebrow"><i></i><span id="overlay-kicker">FLIGHT PAUSED</span></div><h2 id="overlay-title">SYSTEMS HOLD</h2><p id="overlay-text">Your aircraft is holding position.</p><div id="overlay-stats" class="overlay-stats"></div><div id="mission-log" class="mission-log hidden"><h3>MISSION COMMS</h3><div id="mission-log-entries"></div></div><div id="pause-controls" class="pause-controls hidden"><h3>FLIGHT CONTROLS</h3><div class="control-grid"><span><b>W / ↑</b> Pitch down</span><span><b>S / ↓</b> Pitch up · hold for loop</span><span><b>A</b> Roll left · hold for full roll</span><span><b>D</b> Roll right · hold for full roll</span><span><b>Q / ←</b> Yaw left</span><span><b>E / →</b> Yaw right</span><span><b>X + S</b> High alpha on vectoring jets</span><span><b>SHIFT / CTRL</b> Hold boost + throttle up / throttle down</span><span><b>MOUSE</b> Pitch / roll</span><span><b>SPACE / LEFT CLICK</b> Cannon</span><span><b>F / RIGHT CLICK</b> Missile · free fire or lock</span><span><b>B</b> Gravity bomb</span><span><b>N</b> Nuclear bomb · 4.5 s fuse</span><span><b>G</b> Hold air brake · release to accelerate</span><span><b>C</b> Camera view</span><span><b>M</b> Mute / unmute</span><span><b>P / ESC</b> Resume</span></div><p>Bank with A or D, then pull with S to turn. Gamepad: left stick pitch / roll · shoulders yaw · triggers throttle · L3 + pull for high alpha · A cannon · B missile · X bomb · Y special</p></div><div class="overlay-actions"><button id="resume-button" class="primary">RESUME FLIGHT <b>↗</b></button><button id="restart-button" class="secondary">RESTART <span>↗</span></button><button id="hangar-button" class="secondary">HANGAR <span>↗</span></button></div></div></div>
   <script type="module" src="/src/app/main.js"></script>
 </body>
 </html>

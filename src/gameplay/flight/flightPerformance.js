@@ -1,5 +1,10 @@
 // Metres per second. Normal throttle is tuned for deliberate city passes;
 // the top of the throttle range is reserved for combat/afterburner flight.
+export function effectiveEngineThrottle(throttle,profile,afterburnerHeld=false){
+  if(profile.afterburner===false)return throttle;
+  return afterburnerHeld?1:Math.min(throttle,.82);
+}
+
 export function targetAirspeed(throttle,aircraftMultiplier=1,airbrake=false){
   if(typeof aircraftMultiplier==='object'){
     const profile=aircraftMultiplier;

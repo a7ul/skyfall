@@ -1,5 +1,15 @@
 import {test,expect} from 'bun:test';
-import {targetAirspeed,advanceAirspeed} from '../../../src/gameplay/flight/flightPerformance.js';
+import {targetAirspeed,effectiveEngineThrottle,advanceAirspeed} from '../../../src/gameplay/flight/flightPerformance.js';
+import {flightProfile} from '../../../src/gameplay/aircraft/flightProfiles.js';
+
+test('fighter boost is held while Shift is pressed and dry thrust returns on release',()=>{
+  const fighter=flightProfile('f22'),attack=flightProfile('a10');
+  expect(effectiveEngineThrottle(1,fighter,false)).toBe(.82);
+  expect(effectiveEngineThrottle(.5,fighter,true)).toBe(1);
+  expect(effectiveEngineThrottle(.5,fighter,false)).toBe(.5);
+  expect(effectiveEngineThrottle(1,attack,false)).toBe(1);
+  expect(targetAirspeed(effectiveEngineThrottle(.5,fighter,true),fighter)).toBeGreaterThan(targetAirspeed(effectiveEngineThrottle(.5,fighter,false),fighter));
+});
 
 test('normal throttle supports a controlled city pass while full throttle remains fast',()=>{
   expect(targetAirspeed(.55,1.08)).toBeGreaterThan(60);

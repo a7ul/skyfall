@@ -1,6 +1,6 @@
 import {defineConfig} from 'vite';
-import {lyonLegacyTiles} from './tools/vite/lyonLegacyTiles.js';
+import {localMapPacks} from './tools/vite/localMapPacks.js';
 
 export default defineConfig({
-  plugins:[lyonLegacyTiles()]
+  plugins:[localMapPacks()]
 });
