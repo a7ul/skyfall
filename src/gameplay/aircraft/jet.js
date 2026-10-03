@@ -4,10 +4,10 @@ import {prepareControlSurfaces,bindControlSurfaces} from './controlSurfaces.js';
 
 // The bundled, textured GLBs are credited in public/assets/aircraft/ATTRIBUTION.md.
 export const AIRCRAFT = [
-  {id:'f22', label:'F-22 RAPTOR', role:'STEALTH AIR SUPERIORITY', origin:'USAF · TWIN ENGINE', speed:1.08, turn:1.0, model:'f-22.glb', length:14.4, engines:2},
-  {id:'f35', label:'F-35 LIGHTNING II', role:'MULTIROLE STRIKE', origin:'USAF · SINGLE ENGINE', speed:.98, turn:1.06, model:'f-35.glb', length:12.8, engines:1},
-  {id:'su57', label:'SU-57 FELON', role:'HIGH AGILITY INTERCEPTOR', origin:'VKS · TWIN ENGINE', speed:1.13, turn:1.14, model:'su-57.glb', length:15.1, engines:2},
-  {id:'su35', label:'SU-35 FLANKER-E', role:'LONG RANGE MULTIROLE', origin:'VKS · TWIN ENGINE', speed:1.02, turn:1.10, model:'su-35.glb', length:16.1, engines:2}
+  {id:'f22', label:'F-22 RAPTOR', role:'STEALTH AIR SUPERIORITY', origin:'USAF · TWIN ENGINE', speed:1.08, turn:1.0, model:'f-22.glb', length:14.4, nozzles:[[-1.12,-.79,5.42,.33],[1.12,-.79,5.42,.33]]},
+  {id:'f35', label:'F-35 LIGHTNING II', role:'MULTIROLE STRIKE', origin:'USAF · SINGLE ENGINE', speed:.98, turn:1.06, model:'f-35.glb', length:12.8, nozzles:[[0,-.62,5.1,.36]]},
+  {id:'su57', label:'SU-57 FELON', role:'HIGH AGILITY INTERCEPTOR', origin:'VKS · TWIN ENGINE', speed:1.13, turn:1.14, model:'su-57.glb', length:15.1, nozzles:[[-1.19,.04,6.1,.34],[1.19,.04,6.1,.34]]},
+  {id:'su35', label:'SU-35 FLANKER-E', role:'LONG RANGE MULTIROLE', origin:'VKS · TWIN ENGINE', speed:1.02, turn:1.10, model:'su-35.glb', length:16.1, nozzles:[[-1.02,-1.06,6.53,.33],[1.02,-1.06,6.53,.33]]}
 ];
 
 const templates=new Map();
@@ -21,18 +21,16 @@ function plumeTexture(core=false){
   const clamp=(value,min=0,max=1)=>Math.max(min,Math.min(max,value));
   for(let y=0;y<canvas.height;y++){
     const distance=1-y/(canvas.height-1);
-    const envelope=Math.pow(1-distance,1.15)*clamp(distance*13);
-    const width=(core?.38:.7)*(1-distance*.72);
-    const cell=Math.exp(-Math.pow((distance-.2)/.055,2))*.8+Math.exp(-Math.pow((distance-.49)/.065,2))*.45;
+    const envelope=Math.pow(1-distance,1.5)*clamp(distance*11+.12);
+    const cell=Math.exp(-Math.pow((distance-.21)/.065,2))*.7+Math.exp(-Math.pow((distance-.5)/.075,2))*.45;
     for(let x=0;x<canvas.width;x++){
-      const across=(x/(canvas.width-1)*2-1)-.045*Math.sin(distance*24)-.025*Math.sin(distance*57);
-      const falloff=Math.exp(-Math.pow(across/width,2)*2.1);
-      const ripple=.8+.09*Math.sin(distance*61+across*14)+.07*Math.sin(distance*113-across*29);
-      const alpha=clamp(envelope*falloff*ripple*(core?.73:.48)*(1+cell));
+      const around=x/(canvas.width-1)*Math.PI*2;
+      const ripple=.69+.18*Math.sin(around*7+distance*43)+.11*Math.sin(around*13-distance*81)+.06*Math.sin(around*23+distance*163);
+      const alpha=clamp(envelope*ripple*(core?.39:.21)*(1+cell));
       const offset=(y*canvas.width+x)*4;
-      image.data[offset]=core?255:105;
-      image.data[offset+1]=core?235:167;
-      image.data[offset+2]=core?195:238;
+      image.data[offset]=core?255:91;
+      image.data[offset+1]=core?228:168;
+      image.data[offset+2]=core?185:242;
       image.data[offset+3]=Math.round(alpha*255);
     }
   }
@@ -42,31 +40,46 @@ function plumeTexture(core=false){
   return texture;
 }
 
+function plumeGeometry(length,radius){
+  const radial=24,axial=36,positions=[],uvs=[],indices=[];
+  for(let row=0;row<=axial;row++){
+    const t=row/axial;
+    const taper=1-.22*t-.7*t*t;
+    for(let column=0;column<=radial;column++){
+      const angle=column/radial*Math.PI*2;
+      const wobble=1+.09*Math.sin(t*32+angle*5)+.035*Math.sin(t*77-angle*11);
+      const r=radius*taper*wobble;
+      positions.push(Math.cos(angle)*r,Math.sin(angle)*r,length*t);
+      uvs.push(column/radial,t);
+      if(row<axial&&column<radial){
+        const a=row*(radial+1)+column,b=a+radial+1;
+        indices.push(a,b,a+1,b,b+1,a+1);
+      }
+    }
+  }
+  const geometry=new THREE.BufferGeometry();
+  geometry.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));
+  geometry.setAttribute('uv',new THREE.Float32BufferAttribute(uvs,2));
+  geometry.setIndex(indices);geometry.computeVertexNormals();
+  return geometry;
+}
+
 function makeExhausts(spec){
   exhaustTextures??={outer:plumeTexture(),core:plumeTexture(true)};
   const exhausts=new THREE.Group();
-  const offsets=spec.engines===1?[0]:[-.57,.57];
-  for(const x of offsets){
+  for(const [x,y,z,radius] of spec.nozzles){
     const plume=new THREE.Group();
-    plume.position.set(x,-.05,spec.length*.49+.35);
-    // The warm metal is set back inside the nozzle. A front-facing glow card
-    // turns into a flat blue disc from the chase camera, especially in daylight.
-    const liner=new THREE.Mesh(new THREE.CylinderGeometry(.255,.285,.17,20,1,true),new THREE.MeshBasicMaterial({color:0x9f5b31,transparent:true,opacity:.12,depthWrite:false,side:THREE.DoubleSide}));
-    liner.geometry.rotateX(Math.PI/2);liner.position.z=-.18;liner.userData.effect='liner';plume.add(liner);
-    for(const [effect,length,width,opacity,map] of [
-      ['sheath',3.6,.95,.88,exhaustTextures.outer],
-      ['core',2.35,.62,1,exhaustTextures.core]
+    plume.position.set(x,y,z);
+    const liner=new THREE.Mesh(new THREE.CylinderGeometry(radius*.89,radius*.89,.25,24,1,true),new THREE.MeshBasicMaterial({color:0xc36b35,transparent:true,opacity:.1,depthWrite:false,side:THREE.DoubleSide}));
+    liner.geometry.rotateX(Math.PI/2);liner.position.z=-.1;liner.userData.effect='liner';plume.add(liner);
+    for(const [effect,length,baseRadius,opacity,map] of [
+      ['sheath',3.3,radius*.87,.65,exhaustTextures.outer],
+      ['core',2.15,radius*.47,.75,exhaustTextures.core]
     ]){
-      const geometry=new THREE.PlaneGeometry(width,length);
-      geometry.rotateX(Math.PI/2);
-      for(let sheet=0;sheet<2;sheet++){
-        const mesh=new THREE.Mesh(geometry,new THREE.MeshBasicMaterial({map,transparent:true,opacity,depthWrite:false,blending:effect==='core'?THREE.AdditiveBlending:THREE.NormalBlending,side:THREE.DoubleSide}));
-        mesh.position.z=length*.5+.03;
-        mesh.rotation.z=sheet*Math.PI/2;
-        mesh.userData.baseOpacity=opacity;
-        mesh.userData.effect=effect;
-        plume.add(mesh);
-      }
+      const mesh=new THREE.Mesh(plumeGeometry(length,baseRadius),new THREE.MeshBasicMaterial({map,transparent:true,opacity,depthWrite:false,blending:effect==='core'?THREE.AdditiveBlending:THREE.NormalBlending,side:THREE.DoubleSide}));
+      mesh.userData.baseOpacity=opacity;
+      mesh.userData.effect=effect;
+      plume.add(mesh);
     }
     exhausts.add(plume);
   }
@@ -131,7 +144,7 @@ export function updateAfterburners(jet,throttle,time,airbrake=false){
       for(const mesh of plume.children){
         const effect=mesh.userData.effect;
         const pulse=1+.045*Math.sin(time*(effect==='core'?53:31)+index*2.7);
-        if(effect==='liner')mesh.material.opacity=(.06+.11*power)*pulse;
+        if(effect==='liner')mesh.material.opacity=(.04+.08*power)*pulse;
         else mesh.material.opacity=mesh.userData.baseOpacity*power*pulse;
       }
     }
