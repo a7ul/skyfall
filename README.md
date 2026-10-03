@@ -21,6 +21,12 @@ Open **[Skyfall Protocol on GitHub Pages](https://a7ul.github.io/skyfall/)** in 
 
 The folder selection is remembered for the same browser and site across refreshes. Chrome may ask you to reconnect permission, but you should not need to browse to the folder again. The map pack is a **central Lyon snapshot**; areas outside the captured tiles cannot acquire extra detail. The game needs a WebGPU-capable desktop Chrome build with GPU acceleration and enough free disk space to unpack the map. There are no company API keys or usage charges.
 
+#### Setup video tutorial
+
+<video src="https://github.com/user-attachments/assets/6e807316-f05f-473f-80f0-1b9f35f79319" width="320" height="240" controls></video>
+
+
+
 ## The game
 
 **Operation Nightglass** follows Viper One after Sable seizes Lyon's evacuation frequencies and traps Mercy Seven's relief convoy beside the Rhône. The convoy carries evidence that Sable shot down a relief plane. Across one sortie, you disable two jammers, survive an aerial ambush, face commander Wraith, and open an exit corridor for the convoy.
