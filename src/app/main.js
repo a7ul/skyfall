@@ -120,12 +120,11 @@ function updateJetOptions(){ui.options.innerHTML='';AIRCRAFT.forEach((spec,i)=>{
 function setPreviewJet(){if(previewJet)removeObject(previewJet);previewJet=createJet(AIRCRAFT[selected],2.15);previewJet.position.set(0,180,300);previewJet.rotation.set(.02,-.18,-.12);scene.add(previewJet);}
 
 let launchEnabled=false;
-function setLaunchLoading(count=0){
+function setLaunchLoading(){
   if(launchEnabled)return;
-  const label=count?`LOADING CITY · ${count}`:'LOADING CITY…';
   for(const [buttonId,labelId] of [['start-mission','mission-launch-label'],['start-free','free-launch-label']]){
     const button=$(buttonId);button.disabled=true;button.classList.add('loading');
-    $(labelId).textContent=label;button.querySelector('b').textContent='⟳';
+    $(labelId).textContent='LOADING…';button.querySelector('b').textContent='⟳';
   }
 }
 function enableLaunch(){
@@ -147,7 +146,7 @@ async function init(){
   audio.preload().catch(error=>console.warn('Flight audio preload failed:',error));
   setLaunchLoading();
   if(!navigator.gpu){ui.gpu.textContent='WEBGPU IS UNAVAILABLE IN THIS BROWSER. USE A CURRENT CHROME OR EDGE BUILD WITH GPU ACCELERATION.';ui.gpu.classList.add('error');disableLaunch();return;}
-  try{renderer=new WebGPURenderer({antialias:true,powerPreference:'high-performance'});renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));renderer.setSize(innerWidth,innerHeight);renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.2;await renderer.init();$('game').appendChild(renderer.domElement);ui.gpu.textContent='STREAMING LYON CITY…';await Promise.all([createWorld(scene,(done)=>{setLaunchLoading(done);ui.gpu.textContent=done?`LYON CITY · ${done} TILES LOADED`:'LYON CITY INDEX READY · STREAMING…';},renderer,camera).then(value=>world=value),loadJetModels()]);setPreviewJet();animate();await world.ready;ui.gpu.textContent='INITIAL LYON AREA READY · DETAIL STREAMS IN FLIGHT';enableLaunch();}
+  try{renderer=new WebGPURenderer({antialias:true,powerPreference:'high-performance'});renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));renderer.setSize(innerWidth,innerHeight);renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.2;await renderer.init();$('game').appendChild(renderer.domElement);ui.gpu.textContent='STREAMING LYON CITY…';await Promise.all([createWorld(scene,(done)=>{setLaunchLoading();ui.gpu.textContent=done?`LYON CITY · ${done} TILES LOADED`:'LYON CITY INDEX READY · STREAMING…';},renderer,camera).then(value=>world=value),loadJetModels()]);setPreviewJet();animate();await world.ready;ui.gpu.textContent='INITIAL LYON AREA READY · DETAIL STREAMS IN FLIGHT';enableLaunch();}
   catch(error){console.error(error);ui.gpu.textContent=`WEBGPU INITIALIZATION FAILED: ${error.message}`;ui.gpu.classList.add('error');disableLaunch();}
 }
 
