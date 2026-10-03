@@ -8,6 +8,7 @@ import {applyFlightInput,compassHeading} from './flightMath.js';
 import {keyboardAxes} from './inputMapping.js';
 import {targetAirspeed} from './flightPerformance.js';
 import {vehicleRayDistance} from './vehicleHits.js';
+import {chooseLockTarget} from './targeting.js';
 
 const $=id=>document.getElementById(id);
 const ui={menu:$('menu'),hud:$('hud'),overlay:$('overlay'),gpu:$('gpu-status'),options:$('jet-options'),detail:$('jet-detail'),count:$('jet-count'),volume:$('volume'),volumeValue:$('volume-value')};
@@ -45,7 +46,17 @@ function onTargetDestroyed(t){if(t.type==='car'){destroyCar(t);return;}t.alive=f
 
 function getControls(){const gp=navigator.getGamepads?.()[0];let {pitchInput,rollInput,yawInput,throttleInput}=keyboardAxes(keys),fire=keys.has('Space')||keys.has('MouseLeft'),missile=keys.has('KeyF')||keys.has('MouseRight');if(mouseActive){pitchInput=clamp(pitchInput+mouseY*.7,-1,1);rollInput=clamp(rollInput-mouseX*.7,-1,1);}if(gp){const dz=a=>Math.abs(a)<.12?0:a;pitchInput=clamp(pitchInput+dz(gp.axes[1]||0),-1,1);rollInput=clamp(rollInput-dz(gp.axes[0]||0),-1,1);yawInput=clamp(yawInput+(gp.buttons[4]?.pressed?1:0)-(gp.buttons[5]?.pressed?1:0),-1,1);throttleInput=clamp(throttleInput+(gp.buttons[7]?.value||0)-(gp.buttons[6]?.value||0),-1,1);fire=fire||gp.buttons[0]?.pressed;missile=missile||gp.buttons[1]?.pressed;}return{pitchInput,rollInput,yawInput,throttleInput,fire,missile};}
 function updateFlight(dt){const c=getControls(),spec=AIRCRAFT[selected];throttle=clamp(throttle+c.throttleInput*dt*.34,.2,1);const desired=targetAirspeed(throttle,spec.speed,airbrake);speed+=clamp(desired-speed,(airbrake?-42:-22)*dt,28*dt);applyFlightInput(quat,c,dt,spec.turn);jet.quaternion.copy(quat);animateControlSurfaces(jet,c,dt,airbrake);forward.set(0,0,-1).applyQuaternion(quat).normalize();yaw=Math.atan2(-forward.x,-forward.z);euler.setFromQuaternion(quat,'YXZ');pitch=euler.x;roll=euler.z;if(mouseActive){const returnRate=Math.exp(-dt*5);mouseX*=returnRate;mouseY*=returnRate;}jet.position.addScaledVector(forward,speed*dt);jet.position.y-=Math.max(0,42-speed)*.18*dt;for(const flame of jet.userData.afterburners||[]){flame.visible=throttle>.82&&!airbrake;flame.scale.z=.75+throttle*.8+Math.sin(elapsed*43)*.08;}const floor=Math.max(-1.4,terrainHeight(jet.position.x,jet.position.z));if(jet.position.y<floor+9){health=0;explode(jet.position,2);audio.explosion();finish(false);return;}if(speed<43&&elapsed-lastWarning>5){setRadio('Stall warning. Add throttle and lower the nose.');lastWarning=elapsed;}if(c.fire)fireGun(dt);else gunTime=0;if(c.missile&&!gamepadWasPressed)fireMissile();gamepadWasPressed=!!c.missile;audio.update(throttle,speed);}
-function findTarget(){if(mode==='free'){if(target?.type==='car'&&target.alive&&target.visible){const delta=tmp.copy(target.position).sub(jet.position);delta.y+=target.height*.5;if(delta.length()<1800&&forward.angleTo(delta)<.18)return target;}return world?.traffic?.findLockTarget(jet.position,forward)||null;}const candidates=(phase===0?radars:enemies).filter(t=>t.alive);let best=null,bestScore=Infinity;for(const t of candidates){const delta=tmp.copy(t.position).sub(jet.position),distance=delta.length();if(distance>7500)continue;const angle=forward.angleTo(delta);const score=angle*8500+distance;if(angle<.55&&score<bestScore){best=t;bestScore=score;}}return best;}
+function findTarget(){
+  let car=null;
+  if(target?.type==='car'&&target.alive&&target.visible){
+    const delta=tmp.copy(target.position).sub(jet.position);
+    delta.y+=target.height*.5;
+    if(delta.length()<1800&&forward.angleTo(delta)<.18)car=target;
+  }
+  car ||= world?.traffic?.findLockTarget(jet.position,forward)||null;
+  if(mode==='free')return car;
+  return chooseLockTarget(phase===0?radars:enemies,car,jet.position,forward);
+}
 function updateLock(dt){const next=findTarget();if(next!==target){target=next;lockTime=0;}$('target-label').classList.toggle('hidden',!target);if(!target){$('lock-ring').classList.remove('active');return;}const distance=target.position.distanceTo(jet.position),angle=forward.angleTo(tmp.copy(target.position).sub(jet.position));const acquiring=angle<.31&&distance<6000;lockTime=clamp(lockTime+(acquiring?dt:-dt*1.8),0,1.35);const locked=lockTime>=1.35;$('lock-ring').classList.toggle('active',acquiring);$('lock-ring').style.opacity=acquiring?String(.3+lockTime/1.35*.7):'0';const projected=target.position.clone().project(camera);const label=$('target-label');label.style.left=clamp((projected.x*.5+.5)*innerWidth,140,innerWidth-140)+'px';label.style.top=clamp((-projected.y*.5+.5)*innerHeight+40,90,innerHeight-170)+'px';label.textContent=`${locked?'◆ LOCK':'◇ TRACK'}  ${target.name}  ${(distance/1000).toFixed(1)} KM`;if(locked&&lockTime-dt<1.35)audio.lock();}
 function fireMissile(){
   if(!jet||missiles<=0||missileCooldown>0||!target||lockTime<1.35)return;
