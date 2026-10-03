@@ -16,6 +16,26 @@ test('every selectable jet has a distinct speed and handling envelope',()=>{
   expect(flightProfile('a10').maxSpeed).toBeLessThan(flightProfile('f22').maxSpeed);
   expect(flightProfile('f16').rollRate).toBeGreaterThan(flightProfile('f15').rollRate);
   expect(flightProfile('su35').thrustVectoring).toBeGreaterThan(flightProfile('f22').thrustVectoring);
+  expect(flightProfile('f35').gLimit).toBe(9);
+  expect(flightProfile('f15').maxSpeed).toBeGreaterThan(flightProfile('f16').maxSpeed);
+});
+
+test('A-10 launches at a usable attack speed without fighter-style afterburner',()=>{
+  const a10=flightProfile('a10'),f22=flightProfile('f22');
+  expect(a10.afterburner).toBe(false);
+  expect(targetAirspeed(.5,a10)*1.944).toBeGreaterThan(140);
+  expect(targetAirspeed(.5,a10)).toBeLessThan(targetAirspeed(.5,f22));
+  expect(targetAirspeed(1,a10)).toBe(160);
+  expect(targetAirspeed(1,a10)).toBeLessThan(targetAirspeed(1,f22));
+  expect(targetAirspeed(.83,a10)-targetAirspeed(.81,a10)).toBeLessThan(6);
+});
+
+test('A-10 retains responsive low-speed roll but remains slower than the F-22',()=>{
+  const a10Motion=createFlightMotion(),f22Motion=createFlightMotion();
+  step(new THREE.Quaternion(),a10Motion,controls(0,1),flightProfile('a10'),1,73);
+  step(new THREE.Quaternion(),f22Motion,controls(0,1),flightProfile('f22'),1,73);
+  expect(a10Motion.rollRate).toBeGreaterThan(1.3);
+  expect(a10Motion.rollRate).toBeLessThan(f22Motion.rollRate);
 });
 
 test('roll input completes a rotation and a reverse command changes rate gradually',()=>{

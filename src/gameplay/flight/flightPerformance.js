@@ -3,6 +3,13 @@
 export function targetAirspeed(throttle,aircraftMultiplier=1,airbrake=false){
   if(typeof aircraftMultiplier==='object'){
     const profile=aircraftMultiplier;
+    if(profile.afterburner===false){
+      const power=Math.max(.2,Math.min(1,throttle));
+      const target=power<=.72
+        ?profile.minSpeed+(profile.cruiseSpeed-profile.minSpeed)*(power-.2)/.52
+        :profile.cruiseSpeed+(profile.maxSpeed-profile.cruiseSpeed)*(power-.72)/.28;
+      return Math.max(profile.minSpeed,target-(airbrake?29:0));
+    }
     const normal=Math.min(Math.max(throttle,0),.82)/.82;
     const boost=Math.max(0,Math.min(1,(throttle-.82)/.18));
     const target=profile.minSpeed+(profile.cruiseSpeed-profile.minSpeed)*normal+(profile.maxSpeed-profile.cruiseSpeed)*boost;
@@ -19,7 +26,7 @@ export function advanceAirspeed(speed,throttle,multiplier,airbrake,verticalDirec
   const target=targetAirspeed(throttle,multiplier,airbrake);
   if(typeof multiplier==='object'){
     const profile=multiplier;
-    const acceleration=profile.acceleration*(throttle>.82?1.24:1);
+    const acceleration=profile.acceleration*(throttle>.82&&profile.afterburner!==false?1.24:1);
     const engine=Math.max(-(airbrake?profile.brakeDeceleration:profile.acceleration)*dt,Math.min(acceleration*dt,(target-speed)*.9*dt));
     const gravity=9.81*verticalDirection*.4*dt;
     const turnLoad=Math.abs(controls.pitchInput)*28+Math.abs(controls.rollInput)*8+Math.abs(controls.yawInput)*10;

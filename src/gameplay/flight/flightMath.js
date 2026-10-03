@@ -28,11 +28,11 @@ export function createFlightMotion(){return {pitchRate:0,rollRate:0,yawRate:0,an
 // Releasing a key settles the rotation but preserves the achieved bank.
 export function stepFlightAttitude(orientation,motion,controls,dt,profile,airspeed,airbrake=false,highAlpha=false){
   const clamp=THREE.MathUtils.clamp;
-  const authority=clamp(airspeed/85,profile.thrustVectoring ? .55 : .38,1.08);
+  const authority=clamp(airspeed/(profile.maneuverSpeed||85),profile.thrustVectoring ? .55 : .38,1.08);
   const structuralRate=profile.gLimit*9.81/Math.max(airspeed,57)*(airbrake?1.12:1);
   const assisted=highAlpha&&profile.thrustVectoring>0&&airspeed>38&&airspeed<145;
   const pitchLimit=Math.min(profile.pitchRate*authority*(assisted?1+profile.thrustVectoring*.65:1),structuralRate*(assisted?1.7:1));
-  const rollLimit=profile.rollRate*clamp(airspeed/73,.55,1.08);
+  const rollLimit=profile.rollRate*clamp(airspeed/((profile.maneuverSpeed||85)*.86),.55,1.08);
   const yawLimit=Math.min(profile.yawRate*authority*(assisted?1.25:1),structuralRate*.85*(assisted?1.5:1));
   const commanded={pitchRate:clamp(controls.pitchInput,-1,1)*pitchLimit,rollRate:clamp(controls.rollInput,-1,1)*rollLimit,yawRate:clamp(controls.yawInput,-1,1)*yawLimit};
   const follow=1-Math.exp(-profile.response*dt);
