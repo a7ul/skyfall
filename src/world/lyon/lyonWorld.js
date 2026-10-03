@@ -46,6 +46,11 @@ export async function createLyonWorld(scene,onProgress=()=>{},renderer,camera){
   tiles.lruCache.minBytesSize=cacheGB*.72*1024**3;
   tiles.lruCache.maxBytesSize=cacheGB*1024**3;
   const lookAhead=new SphereRegion({sphere:new THREE.Sphere(new THREE.Vector3(),300),errorTarget:12});
+  const launchRegions=[
+    new SphereRegion({sphere:new THREE.Sphere(new THREE.Vector3(),380),errorTarget:11}),
+    new SphereRegion({sphere:new THREE.Sphere(new THREE.Vector3(),380),errorTarget:11}),
+  ];
+  const launchCenters=[new THREE.Vector3(0,145,550),new THREE.Vector3(0,430,950)];
   const preloader=new LoadRegionPlugin();
   tiles.registerPlugin(preloader);
   // The photomesh uses ellipsoid heights; its local street level is roughly
@@ -65,10 +70,9 @@ export async function createLyonWorld(scene,onProgress=()=>{},renderer,camera){
   let resolveReady;
   const ready=new Promise(resolve=>{resolveReady=resolve;});
   let launchReady=false;
-  let allowEarlyReady=false;
-  const makeReady=()=>{if(!launchReady&&loaded>0){launchReady=true;resolveReady();}};
-  const launchTimeout=setTimeout(()=>{allowEarlyReady=true;makeReady();},12000);
-  tiles.addEventListener('load-root-tileset',()=>onProgress(0,1));
+  let launchIdle=0;
+  const makeReady=()=>{if(!launchReady){launchReady=true;resolveReady();}};
+  tiles.addEventListener('load-root-tileset',()=>onProgress(0));
   tiles.addEventListener('load-model',({scene:tileScene})=>{
     // Aerial textures are often viewed at a grazing angle from the jet.
     tileScene?.traverse(object=>{
@@ -77,12 +81,11 @@ export async function createLyonWorld(scene,onProgress=()=>{},renderer,camera){
         if(material?.map)material.map.anisotropy=8;
       }
     });
-    loaded++;onProgress(loaded,loaded);
+    loaded++;onProgress(loaded);
     if(tileScene){
       loadedScenes.add(tileScene);
       if(damageSites.length)pendingDamageScenes.add(tileScene);
     }
-    if(loaded>=90||allowEarlyReady){clearTimeout(launchTimeout);makeReady();}
   });
   tiles.addEventListener('dispose-model',({scene:tileScene})=>{
     loadedScenes.delete(tileScene);
@@ -233,7 +236,17 @@ export async function createLyonWorld(scene,onProgress=()=>{},renderer,camera){
   function update(dt,position,direction,speed=55,inFlight=false){
     traffic.update(dt,position);
     if(!position)return;
-    if(!inFlight){preloader.removeRegion(lookAhead);return;}
+    if(!inFlight){
+      preloader.removeRegion(lookAhead);
+      tiles.group.updateMatrixWorld();
+      inverse.copy(tiles.group.matrixWorld).invert();
+      for(let i=0;i<launchRegions.length;i++){
+        launchRegions[i].sphere.center.copy(launchCenters[i]).applyMatrix4(inverse);
+        preloader.addRegion(launchRegions[i]);
+      }
+      return;
+    }
+    for(const region of launchRegions)preloader.removeRegion(region);
     preloader.addRegion(lookAhead);
     tiles.group.updateMatrixWorld();
     inverse.copy(tiles.group.matrixWorld).invert();
@@ -250,6 +263,12 @@ export async function createLyonWorld(scene,onProgress=()=>{},renderer,camera){
     const desired=tileErrorTarget(altitude,frameAverage,tiles.stats.refused>0,inFlight);
     tiles.errorTarget=approachTileError(tiles.errorTarget,desired,Math.min(frameMs/1000,.05));
     camera.updateMatrixWorld();tiles.update();
+    if(!launchReady){
+      const stats=tiles.stats;
+      const idle=loaded>=90&&!tiles.isLoading&&stats.queued===0&&stats.downloading===0&&stats.parsing===0;
+      launchIdle=idle?launchIdle+Math.min(frameMs/1000,.05):0;
+      if(launchIdle>=.65)makeReady();
+    }
     if(damageSites.length&&pendingDamageScenes.size){
       tiles.group.updateWorldMatrix(true,false);
       const tileScene=pendingDamageScenes.values().next().value;

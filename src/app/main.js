@@ -113,16 +113,39 @@ function enterMissionStage(index){
   $('stage-banner').classList.remove('hidden');
   updateObjective();
 }
-function updateJetOptions(){ui.options.innerHTML='';AIRCRAFT.forEach((spec,i)=>{const b=document.createElement('button');b.className='jet-option'+(selected===i?' active':'');b.innerHTML=`<small>${String(i+1).padStart(2,'0')} / ${spec.role.split(' ')[0]}</small><strong>${spec.label}</strong>`;b.onclick=()=>{selected=i;audio.click();updateJetOptions();setPreviewJet();};ui.options.appendChild(b)});const a=AIRCRAFT[selected],profile=flightProfile(a.id);ui.count.textContent=`${String(selected+1).padStart(2,'0')} / ${String(AIRCRAFT.length).padStart(2,'0')}`;ui.detail.textContent=`${a.origin}  /  ${profile.name.toUpperCase()}  /  CRUISE ${profile.cruiseSpeed}  /  ROLL ${Math.round(profile.rollRate*180/Math.PI)}°/S${profile.thrustVectoring?'  /  X HIGH-ALPHA':''}`;}
+function updateJetOptions(){ui.options.innerHTML='';AIRCRAFT.forEach((spec,i)=>{const b=document.createElement('button');b.className='jet-option'+(selected===i?' active':'');b.innerHTML=`<small>${String(i+1).padStart(2,'0')} / ${spec.role.split(' ')[0]}</small><strong>${spec.label}</strong>`;b.onclick=()=>{selected=i;audio.click();updateJetOptions();setPreviewJet();};ui.options.appendChild(b)});const a=AIRCRAFT[selected],profile=flightProfile(a.id);ui.count.textContent=`${String(selected+1).padStart(2,'0')} / ${String(AIRCRAFT.length).padStart(2,'0')}`;ui.detail.textContent=`${a.origin}  /  ${profile.name.toUpperCase()}  /  CRUISE ${Math.round(profile.cruiseSpeed*1.944)} KTS  /  ROLL ${Math.round(profile.rollRate*180/Math.PI)}°/S${profile.thrustVectoring?'  /  X HIGH-ALPHA':''}`;}
 function setPreviewJet(){if(previewJet)removeObject(previewJet);previewJet=createJet(AIRCRAFT[selected],2.15);previewJet.position.set(0,180,300);previewJet.rotation.set(.02,-.18,-.12);scene.add(previewJet);}
+
+let launchEnabled=false;
+function setLaunchLoading(count=0){
+  if(launchEnabled)return;
+  const label=count?`LOADING CITY · ${count}`:'LOADING CITY…';
+  for(const [buttonId,labelId] of [['start-mission','mission-launch-label'],['start-free','free-launch-label']]){
+    const button=$(buttonId);button.disabled=true;button.classList.add('loading');
+    $(labelId).textContent=label;button.querySelector('b').textContent='⟳';
+  }
+}
+function enableLaunch(){
+  launchEnabled=true;
+  for(const [buttonId,labelId,label] of [['start-mission','mission-launch-label','LAUNCH MISSION'],['start-free','free-launch-label','FREE FLIGHT']]){
+    const button=$(buttonId);button.disabled=false;button.classList.remove('loading');
+    $(labelId).textContent=label;button.querySelector('b').textContent='↗';
+  }
+}
+function disableLaunch(){
+  for(const [buttonId,labelId] of [['start-mission','mission-launch-label'],['start-free','free-launch-label']]){
+    const button=$(buttonId);button.disabled=true;button.classList.remove('loading');
+    $(labelId).textContent='UNAVAILABLE';button.querySelector('b').textContent='×';
+  }
+}
 
 async function init(){
   updateJetOptions();
   audio.preload().catch(error=>console.warn('Flight audio preload failed:',error));
-  $('start-mission').disabled=true;$('start-free').disabled=true;
-  if(!navigator.gpu){ui.gpu.textContent='WEBGPU IS UNAVAILABLE IN THIS BROWSER. USE A CURRENT CHROME OR EDGE BUILD WITH GPU ACCELERATION.';ui.gpu.classList.add('error');$('start-mission').disabled=true;$('start-free').disabled=true;return;}
-  try{renderer=new WebGPURenderer({antialias:true,powerPreference:'high-performance'});renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));renderer.setSize(innerWidth,innerHeight);renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.2;await renderer.init();$('game').appendChild(renderer.domElement);ui.gpu.textContent='STREAMING LYON CITY…';await Promise.all([createWorld(scene,(done)=>ui.gpu.textContent=done?`LYON CITY · ${done} TILES LOADED`:'LYON CITY INDEX READY · STREAMING…',renderer,camera).then(value=>world=value),loadJetModels()]);setPreviewJet();animate();await world.ready;ui.gpu.textContent='WEBGPU READY · LYON TILES STREAMING';$('start-mission').disabled=false;$('start-free').disabled=false;}
-  catch(error){console.error(error);ui.gpu.textContent=`WEBGPU INITIALIZATION FAILED: ${error.message}`;ui.gpu.classList.add('error');$('start-mission').disabled=true;$('start-free').disabled=true;}
+  setLaunchLoading();
+  if(!navigator.gpu){ui.gpu.textContent='WEBGPU IS UNAVAILABLE IN THIS BROWSER. USE A CURRENT CHROME OR EDGE BUILD WITH GPU ACCELERATION.';ui.gpu.classList.add('error');disableLaunch();return;}
+  try{renderer=new WebGPURenderer({antialias:true,powerPreference:'high-performance'});renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));renderer.setSize(innerWidth,innerHeight);renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.2;await renderer.init();$('game').appendChild(renderer.domElement);ui.gpu.textContent='STREAMING LYON CITY…';await Promise.all([createWorld(scene,(done)=>{setLaunchLoading(done);ui.gpu.textContent=done?`LYON CITY · ${done} TILES LOADED`:'LYON CITY INDEX READY · STREAMING…';},renderer,camera).then(value=>world=value),loadJetModels()]);setPreviewJet();animate();await world.ready;ui.gpu.textContent='INITIAL LYON AREA READY · DETAIL STREAMS IN FLIGHT';enableLaunch();}
+  catch(error){console.error(error);ui.gpu.textContent=`WEBGPU INITIALIZATION FAILED: ${error.message}`;ui.gpu.classList.add('error');disableLaunch();}
 }
 
 function removeObject(object){if(!object)return;scene.remove(object);if(object.userData.afterburners){for(const exhaust of object.userData.afterburners)exhaust.traverse(child=>{if(child.isMesh)child.material.dispose();});return;}object.traverse(child=>{if(child.isMesh){child.geometry.dispose();const materials=Array.isArray(child.material)?child.material:[child.material];for(const material of materials)material?.dispose();}});}

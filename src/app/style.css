@@ -55,3 +55,7 @@
 .enemy-indicator.in-view .bearing{font-size:13px;transform:none}
 .enemy-indicator.ace{color:#ffd19a}
 .enemy-indicator .range{padding:1px 3px;background:#071c24a8}
+.menu-actions .secondary>span{font:700 19px 'Barlow Condensed',sans-serif;letter-spacing:.06em}
+.menu-actions .secondary>b{font:400 23px 'DM Mono',monospace}
+.menu-actions button:disabled{cursor:progress;opacity:.82}
+.menu-actions button.loading>b{animation:spin 1.6s linear infinite}
