@@ -1,5 +1,5 @@
 import {test,expect} from 'bun:test';
-import {sampleCollisionHeight,firstHeightIntersection,resolveSurfaceContact} from '../../../src/world/lyon/collisionField.js';
+import {sampleCollisionHeight,firstHeightIntersection,resolveSurfaceContact,flightSurfaceHeightAt} from '../../../src/world/lyon/collisionField.js';
 import {readFileSync} from 'node:fs';
 
 test('city height field reports rooftops and leaves open water clear',()=>{
@@ -34,4 +34,16 @@ test('a ground strike leaves the aircraft above the visible surface',()=>{
   expect(resolveSurfaceContact(jet,22)).toBe(true);
   expect(jet.y).toBe(30);
   expect(resolveSurfaceContact(jet,22)).toBe(false);
+});
+
+test('low flight stays safe until the fuselage touches the surface directly below it',()=>{
+  const visual=(x)=>x>=6?40:0;
+  const field=()=>24;
+  const jet={x:0,y:2,z:0};
+  const ground=flightSurfaceHeightAt(jet.x,jet.z,visual,field);
+  expect(ground).toBe(0);
+  expect(resolveSurfaceContact(jet,ground,1.5)).toBe(false);
+  jet.y=1.4;
+  expect(resolveSurfaceContact(jet,ground,1.5)).toBe(true);
+  expect(flightSurfaceHeightAt(6,0,visual,field)).toBe(40);
 });

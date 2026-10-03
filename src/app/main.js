@@ -12,7 +12,7 @@ import {keyboardAxes} from '../gameplay/flight/inputMapping.js';
 import {targetAirspeed,advanceAirspeed,stallSeverity,advanceStallTimer,STALL_GRACE_SECONDS} from '../gameplay/flight/flightPerformance.js';
 import {chooseLockTarget} from '../gameplay/combat/targeting.js';
 import {enemyHasShot,segmentHitsSphere} from '../gameplay/combat/combatMath.js';
-import {firstHeightIntersection,resolveSurfaceContact} from '../world/lyon/collisionField.js';
+import {firstHeightIntersection,resolveSurfaceContact,flightSurfaceHeightAt} from '../world/lyon/collisionField.js';
 import {advanceBomb,predictBombImpact,sampleBombPath} from '../gameplay/combat/bombMath.js';
 import {advanceMissile} from '../gameplay/combat/missileFlight.js';
 import {createMissileTrail,updateMissileTrail,disposeMissileTrail} from '../gameplay/combat/missileTrail.js';
@@ -27,7 +27,7 @@ const ui={menu:$('menu'),hud:$('hud'),overlay:$('overlay'),gpu:$('gpu-status'),o
 const audio=new FlightAudio();
 const scene=new THREE.Scene();
 const camera=new THREE.PerspectiveCamera(67,innerWidth/innerHeight,.5,50000);
-let renderer,world,selected=0,jet,previewJet,mode='menu',paused=false,ended=false,phase=0,elapsed=0,kills=0,shots=0,missiles=6,bombAmmo=4,nuclearAmmo=1,health=100,throttle=.55,speed=68,pitch=0,yaw=0,roll=0,gunTime=0,gunCooldown=0,missileCooldown=0,bombCooldown=0,lockTime=0,target=null,radars=[],enemies=[],enemyShots=[],extraction=null,projectiles=[],lingeringTrails=[],bombProjectiles=[],nuclearEffects=[],bullets=[],particles=[],damageMarks=[],groundCraters=[],wrecks=[],fires=[],debris=[],cameraMode=0,radioTime=0,radioText='',lastWarning=0,mouseX=0,mouseY=0,mouseActive=false,gamepadWasPressed=false,bombWasPressed=false,nukeWasPressed=false,airbrake=false,hudTimer=0,cityFloor=-100,cityFloorTimer=0,weaponCueTimer=0,cameraShake=0,blastFlash=0;
+let renderer,world,selected=0,jet,previewJet,mode='menu',paused=false,ended=false,phase=0,elapsed=0,kills=0,shots=0,missiles=6,bombAmmo=4,nuclearAmmo=1,health=100,throttle=.55,speed=68,pitch=0,yaw=0,roll=0,gunTime=0,gunCooldown=0,missileCooldown=0,bombCooldown=0,lockTime=0,target=null,radars=[],enemies=[],enemyShots=[],extraction=null,projectiles=[],lingeringTrails=[],bombProjectiles=[],nuclearEffects=[],bullets=[],particles=[],damageMarks=[],groundCraters=[],wrecks=[],fires=[],debris=[],cameraMode=0,radioTime=0,radioText='',lastWarning=0,mouseX=0,mouseY=0,mouseActive=false,gamepadWasPressed=false,bombWasPressed=false,nukeWasPressed=false,airbrake=false,hudTimer=0,weaponCueTimer=0,cameraShake=0,blastFlash=0;
 const story=createStoryDirector();
 let radioQueue=[],storyHistory=[],stageBannerUntil=0;
 const flightControls={pitchInput:0,rollInput:0,yawInput:0};
@@ -38,6 +38,8 @@ let stallSeconds=0,stallAdvisory=false;
 const keys=new Set();const forward=new THREE.Vector3(),quat=new THREE.Quaternion(),tmp=new THREE.Vector3(),up=new THREE.Vector3(0,1,0);const euler=new THREE.Euler(0,0,0,'YXZ');const clock=new THREE.Clock();
 const clamp=THREE.MathUtils.clamp;
 const surfaceHeight=(x,z)=>Math.max(terrainHeight(x,z),world?.collisionHeight?.(x,z)??-100);
+const visualSurfaceHeight=(x,z)=>world?.visualHeight?.(x,z)??null;
+const flightSurfaceHeight=(x,z)=>flightSurfaceHeightAt(x,z,visualSurfaceHeight,surfaceHeight);
 const debugOutput=import.meta.env.DEV&&new URLSearchParams(location.search).has('debug')?document.createElement('output'):null;
 let lastDebug=0;
 if(debugOutput){
@@ -151,7 +153,7 @@ async function init(){
 
 function removeObject(object){if(!object)return;scene.remove(object);if(object.userData.afterburners){for(const exhaust of object.userData.afterburners)exhaust.traverse(child=>{if(child.isMesh)child.material.dispose();});return;}object.traverse(child=>{if(child.isMesh){child.geometry.dispose();const materials=Array.isArray(child.material)?child.material:[child.material];for(const material of materials)material?.dispose();}});}
 function clearSceneObjects(){$('enemy-indicators').replaceChildren();enemyIndicatorNodes.clear();removeObject(jet);jet=null;removeObject(previewJet);previewJet=null;for(const t of [...radars,...enemies])removeObject(t.group);for(const m of [...projectiles,...bombProjectiles,...bullets])removeObject(m.mesh);for(const m of projectiles)disposeMissileTrail(scene,m.trail);for(const trail of lingeringTrails)disposeMissileTrail(scene,trail);for(const effect of nuclearEffects)disposeNuclearEffect(effect);for(const shot of enemyShots)removeObject(shot.mesh);for(const p of particles){scene.remove(p.mesh);if(!p.sharedGeometry)p.mesh.geometry.dispose();p.mesh.material.dispose();}for(const mark of damageMarks){scene.remove(mark);mark.geometry.dispose();mark.material.dispose();}for(const crater of groundCraters)removeObject(crater);for(const wreck of wrecks)removeObject(wreck.group);for(const fire of fires)for(const sprite of [fire.mesh,...fire.layers]){scene.remove(sprite);sprite.material.dispose();}for(const piece of debris)removeObject(piece.mesh);for(const rubble of [...blastRubble,...collapseRubble])removeObject(rubble);blastRubble.length=collapseRubble.length=0;world?.resetDamage?.();world?.traffic?.reset();if(extraction)removeObject(extraction.group);radars=[];enemies=[];enemyShots=[];projectiles=[];bombProjectiles=[];nuclearEffects=[];bullets=[];particles=[];damageMarks=[];groundCraters=[];wrecks=[];fires=[];debris=[];extraction=null;blastFlash=0;$('blast-flash').style.opacity='0';$('nuke-countdown').classList.add('hidden');$('stall-warning').classList.add('hidden');}
-function start(free=false){if(!renderer)return;audio.setGunFiring(false);clearSceneObjects();audio.init();audio.ctx?.resume();audio.setActive(true);mode=free?'free':'mission';paused=false;ended=false;phase=0;elapsed=0;kills=0;shots=0;missiles=free?99:8;bombAmmo=free?99:4;nuclearAmmo=free?Infinity:1;bombCooldown=0;health=100;throttle=free?.5:.68;speed=targetAirspeed(throttle,flightProfile(AIRCRAFT[selected].id));pitch=0;yaw=0;roll=0;flightControls.pitchInput=flightControls.rollInput=flightControls.yawInput=0;flightMotion.pitchRate=flightMotion.rollRate=flightMotion.yawRate=flightMotion.angleOfAttack=0;stallSeconds=0;stallAdvisory=false;$('stall-warning').classList.add('hidden');quat.identity();forward.set(0,0,-1);flightVelocity.copy(forward).multiplyScalar(speed);highAlpha=false;lockTime=0;target=null;cameraMode=0;mouseActive=false;mouseX=0;mouseY=0;gamepadWasPressed=bombWasPressed=nukeWasPressed=false;airbrake=false;hudTimer=0;cityFloor=-100;cityFloorTimer=0;weaponCueTimer=0;cameraShake=0;radioQueue=[];storyHistory=[];jet=createJet(AIRCRAFT[selected]);jet.position.set(0,free?145:430,free?550:950);scene.add(jet);if(!free){radars=[createRadar(scene,-180,-320,'RELAY ALPHA',surfaceHeight(-180,-320)),createRadar(scene,520,-760,'RELAY BRAVO',surfaceHeight(520,-760))];enterMissionStage(0);$('radio-text').textContent='';}else{setRadio('Free flight authorized. Weapons free. Fire a missile with or without a lock.');$('stage-banner').classList.add('hidden');}
+function start(free=false){if(!renderer)return;audio.setGunFiring(false);clearSceneObjects();audio.init();audio.ctx?.resume();audio.setActive(true);mode=free?'free':'mission';paused=false;ended=false;phase=0;elapsed=0;kills=0;shots=0;missiles=free?99:8;bombAmmo=free?99:4;nuclearAmmo=free?Infinity:1;bombCooldown=0;health=100;throttle=free?.5:.68;speed=targetAirspeed(throttle,flightProfile(AIRCRAFT[selected].id));pitch=0;yaw=0;roll=0;flightControls.pitchInput=flightControls.rollInput=flightControls.yawInput=0;flightMotion.pitchRate=flightMotion.rollRate=flightMotion.yawRate=flightMotion.angleOfAttack=0;stallSeconds=0;stallAdvisory=false;$('stall-warning').classList.add('hidden');quat.identity();forward.set(0,0,-1);flightVelocity.copy(forward).multiplyScalar(speed);highAlpha=false;lockTime=0;target=null;cameraMode=0;mouseActive=false;mouseX=0;mouseY=0;gamepadWasPressed=bombWasPressed=nukeWasPressed=false;airbrake=false;hudTimer=0;weaponCueTimer=0;cameraShake=0;radioQueue=[];storyHistory=[];jet=createJet(AIRCRAFT[selected]);jet.position.set(0,free?145:430,free?550:950);scene.add(jet);if(!free){radars=[createRadar(scene,-180,-320,'RELAY ALPHA',surfaceHeight(-180,-320)),createRadar(scene,520,-760,'RELAY BRAVO',surfaceHeight(520,-760))];enterMissionStage(0);$('radio-text').textContent='';}else{setRadio('Free flight authorized. Weapons free. Fire a missile with or without a lock.');$('stage-banner').classList.add('hidden');}
   ui.menu.classList.add('hidden');ui.overlay.classList.add('hidden');ui.hud.classList.remove('hidden');$('mode-label').textContent=free?'FREE FLIGHT':'MISSION 01 / 04';$('mission-name').textContent=free?'LYON // FREE FLIGHT':MISSION_TITLE;updateObjective();updateCamera(1);updateHud();audio.click();}
 function hangar(){audio.setActive(false);paused=false;mode='menu';clearSceneObjects();setPreviewJet();ui.overlay.classList.add('hidden');ui.hud.classList.add('hidden');ui.menu.classList.remove('hidden');document.exitPointerLock?.();}
 function finish(win,reason=''){audio.setActive(false);paused=true;ended=true;document.exitPointerLock?.();$('overlay-kicker').textContent=win?'OPERATION COMPLETE':'AIRCRAFT LOST';$('overlay-title').textContent=win?'LYON CAN BREATHE':reason==='stall'?'STALL / AIRCRAFT LOST':'SIGNAL LOST';$('overlay-text').textContent=win?'Mercy Seven is through the corridor with the evidence. Wraith is gone, but the files identify another Sable cell beyond Lyon. Viper One, the fight continues.':reason==='stall'?'Airspeed remained below the stall limit for ten seconds. The aircraft lost control before recovery.':'Echo has lost Viper One. Mercy Seven remains trapped beneath Sable airspace. The corridor needs another attempt.';$('overlay-stats').innerHTML=`<span>TIME ${formatTime(elapsed)}</span><span>TARGETS ${kills}</span><span>MISSILES FIRED ${shots}</span>`;$('mission-log').classList.add('hidden');$('pause-controls').classList.add('hidden');$('resume-button').classList.add('hidden');ui.overlay.classList.remove('hidden');if(win)audio.tone(460,.55,'triangle',.13,860);}
@@ -226,25 +228,11 @@ function updateFlight(dt){
   yaw=Math.atan2(-forward.x,-forward.z);
   euler.setFromQuaternion(quat,'YXZ');pitch=euler.x;roll=euler.z;
   if(mouseActive){const returnRate=Math.exp(-dt*5);mouseX*=returnRate;mouseY*=returnRate;}
-  const previousPosition=jet.position.clone();
   jet.position.addScaledVector(flightVelocity,dt);
   updateAfterburners(jet,throttle,elapsed,airbrake);
-  const right=tmp.set(1,0,0).applyQuaternion(quat);
-  cityFloorTimer-=dt;
-  if(cityFloorTimer<=0){
-    cityFloorTimer=.12;
-    const here=world?.visualHeight?.(jet.position.x,jet.position.z);
-    const ahead=world?.visualHeight?.(jet.position.x+forward.x*7,jet.position.z+forward.z*7);
-    cityFloor=Math.max(here??-100,ahead??-100);
-  }
-  const floor=Math.max(-1.4,cityFloor,
-    surfaceHeight(jet.position.x,jet.position.z),
-    surfaceHeight(previousPosition.x,previousPosition.z),
-    surfaceHeight(jet.position.x+forward.x*7,jet.position.z+forward.z*7),
-    surfaceHeight(jet.position.x+right.x*6,jet.position.z+right.z*6),
-    surfaceHeight(jet.position.x-right.x*6,jet.position.z-right.z*6));
-  if(resolveSurfaceContact(jet.position,floor)){health=0;explode(jet.position,2);audio.explosion();finish(false);return;}
-  if(jet.position.y-floor<35&&forward.y<-.04&&elapsed-lastWarning>3){setRadio('Terrain! Pull up!');audio.warning();lastWarning=elapsed;}
+  const floor=flightSurfaceHeight(jet.position.x,jet.position.z);
+  if(resolveSurfaceContact(jet.position,floor,1.5)){health=0;explode(jet.position,2);audio.explosion();finish(false);return;}
+  if(jet.position.y-floor<20&&forward.y<-.04&&elapsed-lastWarning>3){setRadio('Terrain! Pull up!');audio.warning();lastWarning=elapsed;}
   audio.setGunFiring(c.fire);
   if(c.fire)fireGun(dt);else gunTime=0;
   if(c.missile&&!gamepadWasPressed)fireMissile();gamepadWasPressed=!!c.missile;
@@ -1111,7 +1099,7 @@ function updateRadar(){const wrap=$('radar-contacts');wrap.innerHTML='';if(!jet)
 function updateHud(){
   $('speed').textContent=String(Math.round(speed*1.944)).padStart(3,'0');
   $('altitude').textContent=String(Math.max(0,Math.round(jet.position.y*3.281))).padStart(4,'0');
-  const ground=Math.max(terrainHeight(jet.position.x,jet.position.z),world?.collisionHeight?.(jet.position.x,jet.position.z)??-100);
+  const ground=flightSurfaceHeight(jet.position.x,jet.position.z);
   const agl=jet.position.y-ground;
   $('agl').textContent=String(Math.max(0,Math.round(agl*3.281))).padStart(4,'0');
   const heading=Math.round(compassHeading(forward))%360;
@@ -1126,7 +1114,7 @@ function updateHud(){
   $('nuke-countdown').classList.toggle('hidden',!armed);
   if(armed)$('nuke-countdown').textContent=`SPECIAL WEAPON ARMED · ${Math.max(0,armed.fuse).toFixed(1)} S · CLEAR AREA`;
   const profile=flightProfile(AIRCRAFT[selected].id);
-  $('flight-state').textContent=agl<35&&flightVelocity.y<-.04*speed?'TERRAIN WARNING':stallSeconds>0?`STALL WARNING · ${Math.ceil(STALL_GRACE_SECONDS-stallSeconds)} S`:speed<profile.stallSpeed*1.18?'LOW AIRSPEED':highAlpha?'HIGH ALPHA / VECTORING':airbrake?'AIR BRAKE':Math.abs(roll)>1.1?'HIGH BANK ANGLE':throttle>.88&&AIRCRAFT[selected].afterburner!==false?'AFTERBURNER':'FLIGHT STABLE';
+  $('flight-state').textContent=agl<20&&flightVelocity.y<-.04*speed?'TERRAIN WARNING':stallSeconds>0?`STALL WARNING · ${Math.ceil(STALL_GRACE_SECONDS-stallSeconds)} S`:speed<profile.stallSpeed*1.18?'LOW AIRSPEED':highAlpha?'HIGH ALPHA / VECTORING':airbrake?'AIR BRAKE':Math.abs(roll)>1.1?'HIGH BANK ANGLE':throttle>.88&&AIRCRAFT[selected].afterburner!==false?'AFTERBURNER':'FLIGHT STABLE';
   updateRadar();
   const ace=mode==='mission'&&phase===2?enemies.find(enemy=>enemy.ace&&enemy.alive):null;
   $('ace-status').classList.toggle('hidden',!ace);

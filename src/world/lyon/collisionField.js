@@ -22,3 +22,7 @@ export function resolveSurfaceContact(position,height,clearance=8){
   position.y=minimum;
   return true;
 }
+
+export function flightSurfaceHeightAt(x,z,visualHeight,fieldHeight){
+  return Math.max(-1.4,visualHeight(x,z)??fieldHeight(x,z));
+}
