@@ -23,12 +23,14 @@ export async function createLyonWorld(scene,onProgress=()=>{},renderer,camera){
   const buildingIndex=createBuildingIndex(buildingData.buildings);
   sky.mapping=THREE.EquirectangularReflectionMapping;sky.colorSpace=THREE.SRGBColorSpace;
   lighting.mapping=THREE.EquirectangularReflectionMapping;
-  scene.background=sky;scene.backgroundIntensity=.96;
-  scene.environment=lighting;scene.environmentIntensity=.78;
-  scene.fog=new THREE.FogExp2(0xcdb9a9,.000105);
-  scene.add(new THREE.HemisphereLight(0xcddce9,0x8b7868,1.15));
-  // Keep the key light near the photographed sun for a warm, low-angle pass.
-  const sun=new THREE.DirectionalLight(0xffc991,2.22);sun.position.set(950,155,650);scene.add(sun);
+  // Put the photographed sun ahead and to port of the initial flight path.
+  // Rotate the lighting with the panorama so reflections agree with the sky.
+  const skyYaw=2.72;
+  scene.background=sky;scene.backgroundIntensity=1.12;scene.backgroundRotation.y=skyYaw;
+  scene.environment=lighting;scene.environmentIntensity=.88;scene.environmentRotation.y=skyYaw;
+  scene.fog=new THREE.FogExp2(0xe6c9a8,.00009);
+  scene.add(new THREE.HemisphereLight(0xffe4c6,0x947765,1.32));
+  const sun=new THREE.DirectionalLight(0xffd29c,2.6);sun.position.set(-690,245,-900);scene.add(sun);
 
   const tiles=new TilesRenderer(asset('lyon-photomesh/tileset.json'));
   // The camera gets finer visible tiles. A modest region ahead of the jet

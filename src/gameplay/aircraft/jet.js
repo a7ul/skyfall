@@ -1,4 +1,6 @@
 import * as THREE from 'three';
+import {MeshBasicNodeMaterial} from 'three/webgpu';
+import {materialOpacity,screenUV,sin,texture,time,uv,vec2,viewportSafeUV,viewportSharedTexture} from 'three/tsl';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 import {prepareControlSurfaces,bindControlSurfaces} from './controlSurfaces.js';
 
@@ -21,16 +23,17 @@ function plumeTexture(core=false){
   const clamp=(value,min=0,max=1)=>Math.max(min,Math.min(max,value));
   for(let y=0;y<canvas.height;y++){
     const distance=1-y/(canvas.height-1);
-    const envelope=Math.pow(1-distance,1.5)*clamp(distance*11+.12);
-    const cell=Math.exp(-Math.pow((distance-.21)/.065,2))*.7+Math.exp(-Math.pow((distance-.5)/.075,2))*.45;
+    const envelope=Math.pow(1-distance,1.42)*clamp(distance*12+.42);
+    const cell=Math.exp(-Math.pow((distance-.22)/.075,2))+.7*Math.exp(-Math.pow((distance-.53)/.085,2));
+    const hot=Math.exp(-Math.pow(distance/.19,2));
     for(let x=0;x<canvas.width;x++){
       const around=x/(canvas.width-1)*Math.PI*2;
-      const ripple=.69+.18*Math.sin(around*7+distance*43)+.11*Math.sin(around*13-distance*81)+.06*Math.sin(around*23+distance*163);
-      const alpha=clamp(envelope*ripple*(core?.39:.21)*(1+cell));
+      const ripple=.68+.17*Math.sin(around*7+distance*43)+.11*Math.sin(around*13-distance*81)+.07*Math.sin(around*23+distance*163);
+      const alpha=clamp(envelope*ripple*(core?.12+.95*cell+.45*hot:.14));
       const offset=(y*canvas.width+x)*4;
-      image.data[offset]=core?255:91;
-      image.data[offset+1]=core?228:168;
-      image.data[offset+2]=core?185:242;
+      image.data[offset]=core?255:104;
+      image.data[offset+1]=core?Math.round(218+25*cell-37*hot):166;
+      image.data[offset+2]=core?Math.round(175+60*cell-69*hot):236;
       image.data[offset+3]=Math.round(alpha*255);
     }
   }
@@ -40,11 +43,12 @@ function plumeTexture(core=false){
   return texture;
 }
 
-function plumeGeometry(length,radius){
+function plumeGeometry(length,radius,shock=false){
   const radial=24,axial=36,positions=[],uvs=[],indices=[];
   for(let row=0;row<=axial;row++){
     const t=row/axial;
-    const taper=1-.22*t-.7*t*t;
+    const bulge=shock ? .16*Math.exp(-Math.pow((t-.22)/.09,2))+.1*Math.exp(-Math.pow((t-.53)/.1,2)) : 0;
+    const taper=1-.22*t-.7*t*t+bulge;
     for(let column=0;column<=radial;column++){
       const angle=column/radial*Math.PI*2;
       const wobble=1+.09*Math.sin(t*32+angle*5)+.035*Math.sin(t*77-angle*11);
@@ -64,6 +68,18 @@ function plumeGeometry(length,radius){
   return geometry;
 }
 
+function heatMaterial(map){
+  const material=new MeshBasicNodeMaterial({transparent:true,depthWrite:false,side:THREE.FrontSide,opacity:.28});
+  const mask=texture(map,uv()).a;
+  const flow=uv().y.mul(52).sub(time.mul(31));
+  const strength=mask.mul(.009);
+  const offset=vec2(sin(flow.add(uv().x.mul(23))).mul(strength),sin(flow.mul(.71)).mul(strength.mul(.5)));
+  // A shared viewport sample bends the city and sky behind the exhaust.
+  material.colorNode=viewportSharedTexture(viewportSafeUV(screenUV.add(offset))).rgb;
+  material.opacityNode=mask.mul(materialOpacity);
+  return material;
+}
+
 function makeExhausts(spec){
   exhaustTextures??={outer:plumeTexture(),core:plumeTexture(true)};
   const exhausts=new THREE.Group();
@@ -73,14 +89,16 @@ function makeExhausts(spec){
     const liner=new THREE.Mesh(new THREE.CylinderGeometry(radius*.89,radius*.89,.25,24,1,true),new THREE.MeshBasicMaterial({color:0xc36b35,transparent:true,opacity:.1,depthWrite:false,side:THREE.DoubleSide}));
     liner.geometry.rotateX(Math.PI/2);liner.position.z=-.1;liner.userData.effect='liner';plume.add(liner);
     for(const [effect,length,baseRadius,opacity,map] of [
-      ['sheath',3.3,radius*.87,.65,exhaustTextures.outer],
-      ['core',2.15,radius*.47,.75,exhaustTextures.core]
+      ['sheath',3.7,radius*.87,.7,exhaustTextures.outer],
+      ['core',2.75,radius*.47,.96,exhaustTextures.core]
     ]){
-      const mesh=new THREE.Mesh(plumeGeometry(length,baseRadius),new THREE.MeshBasicMaterial({map,transparent:true,opacity,depthWrite:false,blending:effect==='core'?THREE.AdditiveBlending:THREE.NormalBlending,side:THREE.DoubleSide}));
+      const mesh=new THREE.Mesh(plumeGeometry(length,baseRadius,effect==='core'),new THREE.MeshBasicMaterial({map,transparent:true,opacity,depthWrite:false,blending:effect==='core'?THREE.AdditiveBlending:THREE.NormalBlending,side:THREE.DoubleSide}));
       mesh.userData.baseOpacity=opacity;
       mesh.userData.effect=effect;
       plume.add(mesh);
     }
+    const heat=new THREE.Mesh(plumeGeometry(4.1,radius*1.16),heatMaterial(exhaustTextures.outer));
+    heat.userData.effect='heat';heat.userData.baseOpacity=.28;plume.add(heat);
     exhausts.add(plume);
   }
   exhausts.visible=false;
@@ -145,7 +163,7 @@ export function updateAfterburners(jet,throttle,time,airbrake=false){
         const effect=mesh.userData.effect;
         const pulse=1+.045*Math.sin(time*(effect==='core'?53:31)+index*2.7);
         if(effect==='liner')mesh.material.opacity=(.04+.08*power)*pulse;
-        else mesh.material.opacity=mesh.userData.baseOpacity*power*pulse;
+        else{mesh.material.opacity=mesh.userData.baseOpacity*power*pulse;mesh.rotation.z=.11*Math.sin(time*(effect==='core'?6.7:4.3)+index);}
       }
     }
   }
