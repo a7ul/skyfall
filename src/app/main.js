@@ -391,7 +391,11 @@ function addDebris(mesh,impact,floor=0){
   while(debris.length>130)removeObject(debris.shift().mesh);
 }
 function addCollapseDebris(fragment,building){
-  const mesh=new THREE.Mesh(fragment.geometry,fragment.material);
+  fragment.geometry.computeBoundingBox();
+  const extent=fragment.geometry.boundingBox.getSize(new THREE.Vector3());
+  const size=clamp(Math.max(extent.x,extent.y,extent.z)*.24,.38,2.4);
+  const mesh=new THREE.Mesh(new THREE.DodecahedronGeometry(size,0),fragment.material);
+  fragment.geometry.dispose();
   mesh.position.copy(fragment.position);scene.add(mesh);
   const center=new THREE.Vector3((building.minX+building.maxX)/2,0,(building.minZ+building.maxZ)/2);
   const outward=mesh.position.clone().sub(center);outward.y=0;outward.normalize();

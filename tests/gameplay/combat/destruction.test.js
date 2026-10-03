@@ -91,8 +91,9 @@ test('tall structures break into more falling pieces than low ones',()=>{
 
 test('a collapsed building leaves many stones with only two draw calls',()=>{
   const rubble=createCollapseRubble({minX:-8,maxX:8,minZ:-7,maxZ:7,top:42,rubbleHeight:3});
-  expect(rubble.children.length).toBe(2);
-  expect(rubble.children.every(child=>child.isInstancedMesh)).toBe(true);
-  expect(rubble.children.reduce((count,child)=>count+child.count,0)).toBeGreaterThan(100);
+  expect(rubble.children.length).toBe(3);
+  expect(rubble.children[0].isMesh).toBe(true);
+  expect(rubble.children.slice(1).every(child=>child.isInstancedMesh)).toBe(true);
+  expect(rubble.children.slice(1).reduce((count,child)=>count+child.count,0)).toBeGreaterThan(100);
   rubble.traverse(child=>{if(child.isMesh){child.geometry.dispose();child.material.dispose();}});
 });

@@ -74,6 +74,13 @@ export function createCollapseRubble(building){
   const random=randomFor(centerX,centerZ);
   const count=Math.min(220,Math.max(75,Math.round(width*depth*.36+building.top*1.4)));
   const group=new THREE.Group();group.name='Collapsed building rubble';
+  const bed=new THREE.Mesh(
+    new THREE.PlaneGeometry(width*1.32,depth*1.32),
+    new THREE.MeshStandardMaterial({color:0x80796f,roughness:1,side:THREE.DoubleSide})
+  );
+  bed.rotation.x=-Math.PI/2;
+  bed.position.set(centerX,Math.max(.1,building.rubbleHeight*.4),centerZ);
+  group.add(bed);
   const dummy=new THREE.Object3D(),color=new THREE.Color();
   for(const kind of ['slab','stone']){
     const amount=kind==='slab'?Math.floor(count*.38):count-Math.floor(count*.38);
