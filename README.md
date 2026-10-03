@@ -1,5 +1,6 @@
 # Skyfall Protocol
 
+[![Star on GitHub](https://img.shields.io/badge/Star%20on%20GitHub-181717?style=for-the-badge&logo=github&logoColor=white)](https://github.com/a7ul/skyfall)
 
 
 Game url: https://a7ul.github.io/skyfall
