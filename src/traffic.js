@@ -56,8 +56,8 @@ function smoothRoad(points){
   return points.map((p,i)=>[p[0],(low[Math.max(0,i-1)]+low[i]+low[Math.min(low.length-1,i+1)])/3,p[2]]);
 }
 
-export async function createTraffic(scene){
-  const data=await fetch('/assets/helsinki/traffic.json').then(r=>r.json());
+export async function createTraffic(scene,url){
+  const data=await fetch(url).then(r=>r.json());
   const routes=data.routes.filter(r=>r.points.length>2).map(route=>{
     const points=smoothRoad(route.points),cumulative=[0];
     for(let i=1;i<points.length;i++){

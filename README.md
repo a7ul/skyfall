@@ -1,6 +1,6 @@
 # Skyfall Protocol
 
-A playable WebGPU fighter jet prototype over central Helsinki. Fly one story mission or explore in free flight. Four bundled modern aircraft models have distinct flight tuning and animated ailerons, elevators, and rudders. The city is a locally bundled photogrammetric mesh of real streets, buildings, waterfront, and landmarks including Helsinki Cathedral, Senate Square, and Market Square. An 8 × 10 km low detail mesh loads before flight. All 192 cells in the 2 × 6 km flight corridor also have sharp 250 m meshes. The game preloads a 2 km radius around the free flight start and keeps level 18 meshes within 2 km of the jet, medium meshes out to 3 km, and the broader overview beyond. A 12-cell central pilot area adds level 21 geometry and textures within 220 m of the jet below 350 m altitude. Moving sedans, hatchbacks, SUVs, and vans follow locally bundled OpenStreetMap street routes.
+A playable WebGPU fighter jet prototype over **Lyon**. The main menu launches one story mission or free flight in the same city. The 2023 Métropole de Lyon photomesh streams progressively as 3D Tiles. Four textured fighter models have distinct flight tuning and moving ailerons, elevators, and rudders. Local OpenStreetMap road routes drive destructible traffic.
 
 ## Run
 
@@ -9,13 +9,11 @@ bun install
 bun run dev
 ```
 
-Open the local URL printed by Vite in a current Chrome or Edge build with WebGPU and hardware acceleration. Build with `bun run build` and serve `dist/` over HTTP. The game is WebGPU only. No API key, company account, or billing project is required. The 3D city assets are bundled locally. The broad city loads at launch; sharper cells load by distance and altitude.
-
-The menu also links to a **Lyon 2023 photomesh flight trial** at `/lyon.html`. It streams the Métropole de Lyon's public 3D Tiles through the local Vite server, which converts their older glTF 1.0 payloads for Three's WebGPU renderer and keeps a small in-memory tile cache. Run this mode with `bun run dev` or `bun run build && bun run preview`; a plain static file server cannot provide the tile conversion. Lyon uses progressive screen-space detail, starts at a slower inspection speed, and has no mission or traffic yet. It needs an internet connection to the public Lyon dataset, but no key or billing. See [docs/city-source-trials.md](docs/city-source-trials.md).
+Open the URL printed by Vite in a current Chrome or Edge build with WebGPU and GPU acceleration. For a production preview, run `bun run build && bun run preview`. The Lyon tiles require a running Vite server and internet access. Vite proxies the public tiles and converts their legacy glTF 1.0 payloads to glTF 2.0, with a small memory cache. A plain static server cannot perform this conversion. No API key, company account, or billing project is needed.
 
 ## Mission
 
-**Break the Silence:** A rogue defense network is jamming the Helsinki harbor evacuation corridor. Destroy Relay Alpha and Relay Bravo, shoot down the hostile interceptors, and fly through the green extraction gate. Hold a target near the reticle for about 1.35 seconds to lock a missile.
+**Break the Silence:** A rogue defense network is jamming the evacuation route through Lyon. Destroy Relay Alpha and Relay Bravo, shoot down the hostile interceptors, and fly through the green extraction gate. Hold a target near the reticle for about 1.35 seconds to lock a missile. Free flight has unlimited missiles and destructible road traffic.
 
 ## Controls
 
@@ -33,16 +31,14 @@ The menu also links to a **Lyon 2023 photomesh flight trial** at `/lyon.html`. I
 | M | Mute / unmute |
 | P / Esc / bottom HUD button | Pause and show all controls |
 
-Free flight starts at about 55 m/s (106 knots) in the F-22. Full throttle engages the fast combat range; press G for the air brake, which also gives more turn authority. Bank with A or D, then hold S to turn in that direction. Hold A or D for a full roll, or hold S for a full loop; pitch, roll, and yaw remain aircraft-local throughout. Climbing and hard turns spend speed, and diving restores it. The HUD shows both sea-level altitude and height above the nearby city surface (AGL). The left and right ailerons deflect in opposite directions for roll; both elevators follow pitch; the tail rudders follow yaw. Gamepad: left stick pitch/bank, shoulders yaw, triggers throttle, A cannon, B missile.
+Free flight starts at about 55 m/s (106 knots) in the F-22. Bank with A or D, then hold S to turn. Holding A or D completes a full roll, and holding S completes a loop. Pitch, roll, and yaw stay separate in the aircraft's local frame, including inverted flight. Climbing and hard turns spend speed; diving restores it. The air brake slows the jet and improves turn authority. Gamepad: left stick pitch/bank, shoulders yaw, triggers throttle, A cannon, B missile.
 
 ## Data and assets
 
-The city mesh is the City of Helsinki's [2017 reality mesh](https://www.hel.fi/en/decision-making/information-on-helsinki/maps-and-geospatial-data/helsinki-3d), licensed CC BY 4.0. Its public OBJ archive is downloaded by HTTP range by `scripts/build_helsinki_mesh.py` and converted to local GLB cells; the game makes no request to that archive. Road geometry comes from [OpenStreetMap contributors](https://www.openstreetmap.org/copyright), ODbL, converted by `scripts/build_helsinki_traffic.py` to bundled traffic routes. The source XML must be downloaded to `/tmp/helsinki-osm.xml` as documented in that script. The overview mesh covers 8 × 10 km around the Cathedral. All 192 corridor cells have medium and level 18 meshes. The level 21 pilot covers 12 cells along the central flight pass; outside those cells the game stays at level 18 near the jet. The outer ring stays coarse near the ground, and outside the overview the world is simplified water. The source photogrammetry itself has blurry facades and rough edges at very low altitude; the denser level 21 mesh cannot add detail absent from the aerial capture. To regenerate the meshes, install `scripts/requirements.txt`, then run `build_helsinki_mesh.py`, `build_helsinki_overview.py`, `build_helsinki_corridor.py`, `extend_helsinki_detail.py`, `extend_helsinki_ultra.py`, and `build_helsinki_collision.py` from the project root in that order. The bundled assets are ready to run after cloning. City collisions use a 5 m height field from the level 16 photomesh, so narrow facade overhangs and bridges remain approximate. The flight model remains arcade tuned.
+The city is the [Métropole de Lyon 2023 photomesh](https://www.data.gouv.fr/datasets/photomaillage-3d-de-la-metropole-de-lyon), Licence Ouverte / Open Licence 2.0. Its public 3D Tiles stream on demand and are not bundled in this repository. The published 5.5 cm figure describes the source aerial imagery, not guaranteed facade texture sharpness. See [Lyon source notes](docs/city-source-trials.md).
+
+Road routes and an approximate 5 m building collision grid are generated from [OpenStreetMap contributors](https://www.openstreetmap.org/copyright), ODbL, and bundled under `public/assets/lyon/`. To regenerate them, fetch the four OSM map squares documented in `scripts/build_lyon_gameplay.py`, then run that script. The grid uses OSM building footprints and tagged or estimated heights. Its building tops can differ from the photomesh, and bridges or overhangs are approximate.
 
 The F-22, F-35, Su-57, and Su-35 use off-the-shelf textured models. Their sources and noncommercial licenses are in [public/models/ATTRIBUTION.md](public/models/ATTRIBUTION.md). The sky and HDR lighting are adapted from Poly Haven's [Kloppenheim 05 (Pure Sky)](https://polyhaven.com/a/kloppenheim_05_puresky), CC0.
 
-The newer Aalto University Kalasatama scan has been assessed separately in [docs/kalasatama-feasibility.md](docs/kalasatama-feasibility.md). It is not yet a playable city layer.
-
-Afterburners use layered blue exhaust that pulses with throttle. Guided missiles have a visible motor, fins, and smoke trail. Impacts add a flash, shockwave, sparks, and smoke; audio effects are synthesized locally. Traffic cars can be locked when visible and destroyed with proximity-fused missiles or the cannon in either flight mode. A building can block shots or intercept a missile. Hits remove the moving car and leave a briefly burning, smoking wreck. Restarting a flight restores traffic.
-
-Mission bandits now fly pursuit paths, bank with their turns, warn before lining up a shot, and fire visible projectiles that can be evaded. Traffic slows at route endpoints and fully stops while the game is paused. See [gameplay tuning notes](docs/gameplay-design.md) for the control model and its remaining limits.
+Afterburners pulse with throttle. Guided missiles have visible motors and smoke trails. Impacts add flash, shockwave, sparks, smoke, and synthesized audio. Traffic can be locked and destroyed with missiles or the cannon. Restarting restores traffic. Mission bandits bank into pursuit, warn before firing, and use visible projectiles. See [gameplay tuning notes](docs/gameplay-design.md).

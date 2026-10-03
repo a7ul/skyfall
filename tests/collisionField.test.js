@@ -19,12 +19,12 @@ test('buildings block a descending shot before a car behind them',()=>{
   expect(firstHeightIntersection(()=>0,origin,direction,100)).toBeNull();
 });
 
-test('bundled Helsinki field matches the playable city',()=>{
-  const base=new URL('../public/assets/helsinki/',import.meta.url);
+test('bundled Lyon collision field matches the playable road area',()=>{
+  const base=new URL('../public/assets/lyon/',import.meta.url);
   const field=JSON.parse(readFileSync(new URL('collision.json',base),'utf8'));
   const bytes=readFileSync(new URL('collision.bin',base));
   const heights=new Int16Array(bytes.buffer,bytes.byteOffset,bytes.byteLength/2);
   expect(heights.length).toBe(field.width*field.depth);
-  expect(sampleCollisionHeight(field,heights,0,0)).toBeGreaterThan(30);
-  expect(sampleCollisionHeight(field,heights,0,650)).toBeLessThan(15);
+  expect(sampleCollisionHeight(field,heights,0,0)).toBeGreaterThanOrEqual(0);
+  expect(sampleCollisionHeight(field,heights,2000,0)).toBe(-100);
 });

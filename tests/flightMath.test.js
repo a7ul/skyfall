@@ -61,13 +61,15 @@ test('yaw, pitch, and roll affect distinct axes',()=>{
   expect(new THREE.Vector3(0,1,0).applyQuaternion(roll).x).toBeLessThan(-.2);
 });
 
-test('combined inputs have a bounded total control rate',()=>{
+test('combined inputs retain full roll while each axis remains bounded',()=>{
   const solo=applyFlightInput(new THREE.Quaternion(),input(0,1),.1,1);
   const combined=applyFlightInput(new THREE.Quaternion(),input(1,1,1),.1,1);
   const soloRoll=new THREE.Euler().setFromQuaternion(solo,'YXZ').z;
   const combinedRoll=new THREE.Euler().setFromQuaternion(combined,'YXZ').z;
   expect(combinedRoll).toBeGreaterThan(0);
-  expect(combinedRoll).toBeLessThan(soloRoll);
+  expect(Math.abs(combinedRoll-soloRoll)).toBeLessThan(.01);
+  const overdriven=applyFlightInput(new THREE.Quaternion(),input(10,10,10),.1,1);
+  expect(overdriven.angleTo(combined)).toBeLessThan(.0001);
 });
 
 test('air brake gives more turn authority at the same speed',()=>{
