@@ -5,6 +5,7 @@ License: CC BY 4.0, City of Helsinki. Uses HTTP ranges; no API key.
 """
 import io
 import json
+import math
 import re
 import urllib.request
 import zipfile
@@ -86,8 +87,9 @@ def build_tile(archive, folder, level):
     prefix = folder + '/'
     names = sorted(n for n in archive.namelist() if n.startswith(prefix) and re.search(fr'_L{level}(?:_|\.)', n) and n.endswith('.obj'))
     if not names: return None
-    # L18 has 16 child textures. A 4x4 atlas keeps each 250 m cell to one draw call.
-    columns = 4 if level == 18 else 1
+    # Adaptive child tiles are packed into one atlas per 250 m cell, keeping
+    # each detail level to one textured draw call.
+    columns = math.ceil(math.sqrt(len(names)))
     cell_size = 512
     atlas = Image.new('RGB', (columns*cell_size, columns*cell_size), (120,120,120))
     positions, uv_out, faces = [], [], []

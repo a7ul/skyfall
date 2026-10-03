@@ -59,7 +59,7 @@ export async function createHelsinkiWorld(scene,onProgress=()=>{},renderer){
   async function loadMesh(file,depthBias){
     const gltf=await loader.loadAsync(ASSET+file);
     gltf.scene.name=file;
-    gltf.scene.position.y=depthBias===-3?.55:depthBias===-2?.3:0;
+    gltf.scene.position.y=depthBias===-4?.75:depthBias===-3?.55:depthBias===-2?.3:0;
     return prepareMesh(gltf.scene,depthBias);
   }
 
@@ -73,7 +73,7 @@ export async function createHelsinkiWorld(scene,onProgress=()=>{},renderer){
     onProgress(overview.length,overviewTiles.length);
   }
 
-  function applyTile(tile,detail,group){
+  function applyTile(tile,tier,group){
     const key=tile.file,previous=loaded.get(key);
     group.traverse(object=>{
       if(!object.isMesh)return;
@@ -82,16 +82,17 @@ export async function createHelsinkiWorld(scene,onProgress=()=>{},renderer){
       }
     });
     if(previous)disposeTile(previous.group);
-    scene.add(group);loaded.set(key,{group,detail});
+    scene.add(group);loaded.set(key,{group,tier});
   }
-  async function loadTile(tile,detail,immediate=false){
+  async function loadTile(tile,tier,immediate=false){
     const key=tile.file;
     if(pending.has(key))return;
     pending.add(key);
     try{
-      const group=await loadMesh(detail?tile.detail:tile.file,detail?-3:-2);
-      if(immediate)applyTile(tile,detail,group);
-      else ready.push({tile,detail,group});
+      const file=tier===2?tile.ultra:tier===1?tile.detail:tile.file;
+      const group=await loadMesh(file,tier===2?-4:tier===1?-3:-2);
+      if(immediate)applyTile(tile,tier,group);
+      else ready.push({tile,tier,group});
     }catch(error){console.warn('Helsinki mesh tile failed',tile.file,error);}finally{pending.delete(key);}
   }
   async function warmup(position,onWarmup=()=>{}){
@@ -100,14 +101,19 @@ export async function createHelsinkiWorld(scene,onProgress=()=>{},renderer){
       .sort((a,b)=>Math.hypot(a.x-position.x,a.z-position.z)-Math.hypot(b.x-position.x,b.z-position.z));
     for(let i=0;i<nearby.length;i++){
       const tile=nearby[i];
-      await loadTile(tile,!!tile.detail,true);
+      await loadTile(tile,tile.detail?1:0,true);
       onWarmup(i+1,nearby.length);
     }
+    // One ultra cell is enough for the first frame. Adjacent cells stream as
+    // the jet approaches, without holding a large texture set at launch.
+    const closest=nearby.find(tile=>tile.ultra);
+    if(closest&&Math.hypot(closest.x-position.x,closest.z-position.z)<180)
+      await loadTile(closest,2,true);
   }
   function update(dt,position,direction){
     // GLTF decoding is asynchronous. Attach and retire render resources only
     // between renderAsync calls, never from a loader callback mid-frame.
-    for(const item of ready.splice(0))applyTile(item.tile,item.detail,item.group);
+    for(const item of ready.splice(0))applyTile(item.tile,item.tier,item.group);
     oceanNormal.offset.x=(oceanNormal.offset.x+dt*.0017)%1;
     oceanNormal.offset.y=(oceanNormal.offset.y+dt*.0011)%1;
     if(!position)return;
@@ -123,14 +129,16 @@ export async function createHelsinkiWorld(scene,onProgress=()=>{},renderer){
         continue;
       }
       if(distance>mediumRadius)continue;
-      const wantsDetail=!!tile.detail&&distance<(existing?.detail?2200:2000)&&position.y<(existing?.detail?1050:850);
-      if(existing?.detail===wantsDetail||pending.has(tile.file))continue;
+      const wantsUltra=!!tile.ultra&&distance<(existing?.tier===2?260:220)&&position.y<(existing?.tier===2?450:350);
+      const wantsDetail=!!tile.detail&&distance<(existing?.tier>=1?2200:2000)&&position.y<(existing?.tier>=1?1050:850);
+      const tier=wantsUltra?2:wantsDetail?1:0;
+      if(existing?.tier===tier||pending.has(tile.file))continue;
       const ahead=direction?Math.max(0,(tile.x-position.x)*direction.x+(tile.z-position.z)*direction.z):0;
-      candidates.push({tile,distance,wantsDetail,priority:distance-ahead*.35-(wantsDetail?350:0)});
+      candidates.push({tile,tier,priority:distance-ahead*.35-(tier===2?750:tier===1?350:0)});
     }
     if(pending.size>=2||!candidates.length)return;
     candidates.sort((a,b)=>a.priority-b.priority);
-    for(const {tile,wantsDetail} of candidates.slice(0,2-pending.size))loadTile(tile,wantsDetail);
+    for(const {tile,tier} of candidates.slice(0,2-pending.size))loadTile(tile,tier);
   }
   return {sea,city:{get loadedCount(){return overview.length+loaded.size;}},update,warmup};
 }
