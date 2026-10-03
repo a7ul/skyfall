@@ -1198,10 +1198,12 @@ function updateMenuCamera(dt){
   const t=performance.now()*.00014;
   animateControlSurfaces(previewJet,{pitchInput:Math.sin(t*7)*.35,rollInput:Math.sin(t*5)*.45,yawInput:Math.sin(t*4)*.3},dt);
   updateAfterburners(previewJet,.68,t*140);
-  previewJet.rotation.y=-.22+Math.sin(t)*.07;
-  previewJet.rotation.z=-.09+Math.sin(t*1.4)*.025;
-  camera.position.set(80+Math.sin(t)*5,265,530);
-  camera.up.set(0,1,0);camera.lookAt(-20,65,30);
+  // Show a restrained rear three-quarter view against the city horizon.
+  // The old steep camera angle made the aircraft look pasted onto the map.
+  previewJet.rotation.y=-.34+Math.sin(t)*.035;
+  previewJet.rotation.z=-.025+Math.sin(t*1.4)*.012;
+  camera.position.set(80+Math.sin(t)*5,220,530);
+  camera.up.set(0,1,0);camera.lookAt(-20,120,30);
   camera.getWorldDirection(menuDirection);
   menuRight.crossVectors(menuDirection,up).normalize();
   if(menuPreviewDirty){
@@ -1210,7 +1212,7 @@ function updateMenuCamera(dt){
     menuPreviewScreen.y=1-(preview.top+preview.height/2)/innerHeight*2;
     menuPreviewDirty=false;
   }
-  const depth=90,halfHeight=Math.tan(THREE.MathUtils.degToRad(camera.fov/2))*depth;
+  const depth=115,halfHeight=Math.tan(THREE.MathUtils.degToRad(camera.fov/2))*depth;
   previewJet.position.copy(camera.position)
     .addScaledVector(menuDirection,depth)
     .addScaledVector(menuRight,menuPreviewScreen.x*halfHeight*camera.aspect)
