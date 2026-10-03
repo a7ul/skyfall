@@ -1,8 +1,89 @@
 import {createRequire} from 'node:module';
+import {mkdir,readFile,readdir,rename,stat,unlink,writeFile} from 'node:fs/promises';
+import path from 'node:path';
 
 const require=createRequire(import.meta.url);
 const {processGlb}=require('gltf-pipeline');
 const lyonCache=new Map();
+const pendingTiles=new Map();
+const cacheRoot=path.resolve('.cache/lyon-photomesh');
+const remoteRoot='https://data.grandlyon.com/files/grandlyon/2023/mesh/';
+const configuredCacheGB=Number(process.env.LYON_TILE_CACHE_GB||3);
+const maxCacheBytes=(Number.isFinite(configuredCacheGB)&&configuredCacheGB>0?configuredCacheGB:3)*1024**3;
+const diskEntries=new Map();
+let diskBytes=0;
+let trimming=null;
+
+async function scanCache(directory=cacheRoot){
+  let entries;
+  try{entries=await readdir(directory,{withFileTypes:true});}
+  catch(error){if(error.code==='ENOENT')return;throw error;}
+  for(const entry of entries){
+    const file=path.join(directory,entry.name);
+    if(entry.isDirectory())await scanCache(file);
+    else if(entry.isFile()&&!file.endsWith('.tmp')){
+      const info=await stat(file);
+      diskEntries.set(path.relative(cacheRoot,file),{size:info.size,used:info.mtimeMs});
+      diskBytes+=info.size;
+    }
+  }
+}
+const cacheReady=scanCache();
+
+async function trimCache(){
+  if(diskBytes<=maxCacheBytes)return;
+  if(trimming)return trimming;
+  trimming=(async()=>{
+    const oldest=[...diskEntries].sort((a,b)=>a[1].used-b[1].used);
+    for(const [file,entry] of oldest){
+      if(diskBytes<=maxCacheBytes*.9)break;
+      if(pendingTiles.has(file))continue;
+      try{await unlink(path.join(cacheRoot,file));}
+      catch(error){if(error.code!=='ENOENT')throw error;}
+      diskEntries.delete(file);
+      diskBytes-=entry.size;
+    }
+  })().finally(()=>{trimming=null;});
+  return trimming;
+}
+
+async function cachedTile(file){
+  await cacheReady;
+  const memory=lyonCache.get(file);
+  if(memory)return memory;
+  if(pendingTiles.has(file))return pendingTiles.get(file);
+  const pending=(async()=>{
+    const output=path.join(cacheRoot,file);
+    let tile;
+    try{
+      tile=await readFile(output);
+      const entry=diskEntries.get(file);
+      if(entry)entry.used=Date.now();
+    }
+    catch(error){
+      if(error.code!=='ENOENT')throw error;
+      const stale=diskEntries.get(file);
+      if(stale){diskEntries.delete(file);diskBytes-=stale.size;}
+      const remote=await fetch(new URL(file,remoteRoot),{signal:AbortSignal.timeout(120000)});
+      if(!remote.ok){const failure=new Error(`Lyon tile HTTP ${remote.status}`);failure.status=remote.status;throw failure;}
+      const source=Buffer.from(await remote.arrayBuffer());
+      tile=file.endsWith('.b3dm')?await convertLyonTile(source):source;
+      await mkdir(path.dirname(output),{recursive:true});
+      const temporary=`${output}.${process.pid}.${Math.random().toString(36).slice(2)}.tmp`;
+      await writeFile(temporary,tile);
+      await rename(temporary,output);
+      diskEntries.set(file,{size:tile.length,used:Date.now()});
+      diskBytes+=tile.length;
+    }
+    lyonCache.set(file,tile);
+    if(lyonCache.size>96)lyonCache.delete(lyonCache.keys().next().value);
+    await trimCache();
+    return tile;
+  })();
+  pendingTiles.set(file,pending);
+  try{return await pending;}
+  finally{pendingTiles.delete(file);}
+}
 
 function removeLegacyRtc(glb){
   const jsonLength=glb.readUInt32LE(12);
@@ -65,23 +146,15 @@ export function lyonLegacyTiles(){
       if(!/^\/lyon-photomesh\//.test(req.url||''))return next();
       try{
         const path=decodeURIComponent(req.url.split('?')[0].replace(/^\/lyon-photomesh\//,''));
-        if(!/^[A-Za-z0-9_.\/-]+$/.test(path)||path.split('/').includes('..')||!/(\.json|\.b3dm)$/.test(path))throw new Error('Invalid tile path');
-        let tile=lyonCache.get(path);
-        if(!tile){
-          const remote=await fetch(`https://data.grandlyon.com/files/grandlyon/2023/mesh/${path}`);
-          if(!remote.ok){res.statusCode=remote.status;res.end(`Lyon tile ${remote.status}`);return;}
-          const source=Buffer.from(await remote.arrayBuffer());
-          tile=path.endsWith('.b3dm')?await convertLyonTile(source):source;
-          lyonCache.set(path,tile);
-          if(lyonCache.size>96)lyonCache.delete(lyonCache.keys().next().value);
-        }
+        if(!/^[A-Za-z0-9_.\/-]+$/.test(path)||path.split('/').some(part=>!part||part==='.'||part==='..')||!/(\.json|\.b3dm)$/.test(path))throw new Error('Invalid tile path');
+        const tile=await cachedTile(path);
         res.setHeader('Content-Type',path.endsWith('.json')?'application/json':'application/octet-stream');
         // The public 2023 tiles are immutable. Let the browser retain converted
         // payloads across turns so revisiting a block does not re-fetch/convert.
         res.setHeader('Cache-Control','public, max-age=86400');
         res.setHeader('Content-Length',tile.length);
         res.end(tile);
-      }catch(error){server.config.logger.error(`Lyon tile conversion failed: ${error}`);res.statusCode=502;res.end('Tile conversion failed');}
+      }catch(error){server.config.logger.error(`Lyon tile conversion failed: ${error}`);res.statusCode=error.status||502;res.end('Tile conversion failed');}
     });
   };
   return {name:'lyon-legacy-gltf-conversion',configureServer:install,configurePreviewServer:install};

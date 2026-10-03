@@ -87,7 +87,7 @@ This is a **playable prototype** with one complete mission and free flight. Flig
 - **WebGPU rendering:** Three.js `WebGPURenderer` draws the aircraft, city, HUD effects, and destruction, with HDR sky lighting and ACES tone mapping. There is no WebGL fallback; a WebGPU-capable desktop browser and GPU are required.
 - **Streaming 3D world:** `3d-tiles-renderer` loads the 2023 Lyon photomesh progressively. Detail rises near the aircraft and eases back in the distance. OpenStreetMap roads and building footprints support traffic and an approximate collision grid.
 - **Aircraft and gameplay:** glTF fighter models, animated control surfaces, and custom flight, targeting, weapons, mission, traffic, audio, and damage systems run in the browser.
-- **Build pipeline:** Vite and Bun serve the game locally. `gltf-pipeline` converts Lyon's legacy tile payloads for the renderer; the GitHub Pages build preconverts a bounded static tile pack. Large model and HDR files use Git LFS.
+- **Build pipeline:** Vite and Bun serve the game locally. The tile proxy converts Lyon's legacy tile payloads on demand and caches them on disk, allowing detail to follow the aircraft across the full source tileset. A separate CORS-enabled host can serve preconverted tiles instead. Large model and HDR files use Git LFS.
 
 <details>
 <summary>Development, city data, and deployment details</summary>
@@ -96,7 +96,7 @@ This is a **playable prototype** with one complete mission and free flight. Flig
 
 The visible city is the [Métropole de Lyon 2023 photomesh](https://www.data.gouv.fr/datasets/photomaillage-3d-de-la-metropole-de-lyon), Licence Ouverte / Open Licence 2.0. [OpenStreetMap contributors](https://www.openstreetmap.org/copyright), ODbL, provide road routes and building footprints used for traffic and an approximate collision grid. The mesh streams progressively, with finer tiles near low-altitude flight and lower detail farther away. OSM collision heights can differ from the visible photomesh. See the [city source notes](docs/data/city-source-trials.md).
 
-Local development uses Vite to proxy public Lyon tiles and convert their legacy glTF payloads. The large city mesh is not committed to this repo. The seven aircraft models and HDR sky use Git LFS. Run `bun test` for flight, combat, and world tests; see the [gameplay design notes](docs/design/gameplay-design.md) and [aircraft flight tuning](docs/design/flight-model.md) for sources and limitations.
+Local development uses Vite to proxy the complete public Lyon tileset and convert legacy glTF payloads as the aircraft moves. Converted tiles are saved in ignored `.cache/lyon-photomesh/`, so later flights reuse them without another download or conversion. The disk cache is capped at 3 GiB by default; set `LYON_TILE_CACHE_GB` to change that limit. The large city mesh is not committed to this repo. For a built, proxy-backed game, run `bun run build` then `bun run preview`; a plain static file server cannot provide uncached Lyon tiles. A separate host can serve a fully converted tileset when built with `VITE_LYON_TILES_URL=https://your-tile-host/tileset.json`; that host must allow browser cross-origin reads. The seven aircraft models and HDR sky use Git LFS. Run `bun test` for flight, combat, and world tests; see the [gameplay design notes](docs/design/gameplay-design.md) and [aircraft flight tuning](docs/design/flight-model.md) for sources and limitations.
 
 ### GitHub Pages
 
