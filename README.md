@@ -4,13 +4,25 @@
 
 > Playable prototype · One mission + free flight · Desktop browser with WebGPU · No API key or billing project
 
-## Screenshots
+[![F-22 promotional artwork above Lyon](docs/art/f22-over-lyon.jpg)](https://github.com/a7ul/skyfall/releases/download/assets/f22-over-lyon.png)
 
-The current Lyon build in free flight. Click a screenshot to open its copy in the [static `assets` release](https://github.com/a7ul/skyfall/releases/tag/assets). While the repo is private, the README renders local thumbnails because GitHub cannot proxy authenticated release images.
+*F-22 over Lyon — promotional artwork, not an in-game render. Click for the full-resolution image.*
+
+## Gameplay screenshots
+
+These images are captured from the Lyon build in free flight. They show the actual aircraft, HUD, and streamed city tiles. Click either image for its copy in the [static `assets` release](https://github.com/a7ul/skyfall/releases/tag/assets).
 
 | High-detail city pass | Low flight and road-vehicle targeting |
 | --- | --- |
 | [![Fighter jet above detailed Lyon rooftops](docs/screenshots/lyon-high-detail.png)](https://github.com/a7ul/skyfall/releases/download/assets/lyon-high-detail.png) | [![Fighter jet targeting a road vehicle in Lyon](docs/screenshots/lyon-free-flight.png)](https://github.com/a7ul/skyfall/releases/download/assets/lyon-free-flight.png) |
+
+## Aircraft and combat artwork
+
+These high-resolution images illustrate the intended visual direction. They are **generated promotional art**, not gameplay captures or a claim about the current renderer. The README keeps small local copies so images render while the repository is private; each opens the full-resolution release asset.
+
+| Su-57 banking above the river | F-35 missile engagement |
+| --- | --- |
+| [![Su-57 promotional artwork above Lyon](docs/art/su57-over-lyon.jpg)](https://github.com/a7ul/skyfall/releases/download/assets/su57-over-lyon.png) | [![F-35 missile engagement promotional artwork](docs/art/f35-missile-engagement.jpg)](https://github.com/a7ul/skyfall/releases/download/assets/f35-missile-engagement.png) |
 
 ## What is playable
 
