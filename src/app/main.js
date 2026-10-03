@@ -312,36 +312,68 @@ function effectTexture(kind){
 }
 const fireTexture=effectTexture('fire'),smokeTexture=effectTexture('smoke'),scorchTexture=effectTexture('scorch');
 const blastRubble=[];
-function effectSprite(position,size,life,texture,color,opacity,velocity,growth,additive=false){
+function trimParticles(){
+  while(particles.length>420){const old=particles.shift();scene.remove(old.mesh);if(!old.sharedGeometry)old.mesh.geometry.dispose();old.mesh.material.dispose();}
+}
+function effectSprite(position,size,life,texture,color,opacity,velocity,growth,additive=false,options={}){
   const mesh=new THREE.Sprite(new THREE.SpriteMaterial({map:texture,color,transparent:true,opacity,depthWrite:false,blending:additive?THREE.AdditiveBlending:THREE.NormalBlending}));
-  mesh.position.copy(position);mesh.scale.set(size,size,1);scene.add(mesh);
-  particles.push({mesh,velocity,life,maxLife:life,baseOpacity:opacity,growth,sharedGeometry:true});
+  mesh.position.copy(position);mesh.scale.set(size,size,1);mesh.visible=!options.delay;mesh.material.rotation=Math.random()*Math.PI*2;scene.add(mesh);
+  particles.push({mesh,velocity,life,maxLife:life,baseOpacity:opacity,growth,sharedGeometry:true,...options});
+  trimParticles();
   return mesh;
 }
 function emitSmoke(position,size=2,life=.9,color=0x63717a){
-  effectSprite(position,size,life,smokeTexture,color,.72,new THREE.Vector3((Math.random()-.5)*8,3+Math.random()*7,(Math.random()-.5)*8),size*.7);
+  effectSprite(position,size,life,smokeTexture,color,.58,new THREE.Vector3((Math.random()-.5)*3,2+Math.random()*5,(Math.random()-.5)*3),size*.55,false,{drag:.55,fadeIn:.22,rotationSpeed:(Math.random()-.5)*.7});
 }
 function emitSpark(position,size=1){
   effectSprite(position,size,.14,fireTexture,0xffd893,.75,new THREE.Vector3(),size*5,true);
 }
-function explode(position,scale=1){
+function impactRing(position,normal,size,color,life){
+  const mesh=new THREE.Mesh(new THREE.RingGeometry(.78,1,32),new THREE.MeshBasicMaterial({color,transparent:true,opacity:.38,depthWrite:false,side:THREE.DoubleSide}));
+  mesh.position.copy(position).addScaledVector(normal,.35);mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0,0,1),normal);mesh.scale.setScalar(Math.max(.1,size*.14));scene.add(mesh);
+  particles.push({mesh,velocity:new THREE.Vector3(),life,maxLife:life,baseOpacity:.38,growth:size/life,ring:true});
+  trimParticles();
+}
+function explode(position,scale=1,{surface=false,normal=new THREE.Vector3(0,1,0),kind='air'}={}){
   if(jet&&position.distanceTo(jet.position)<250)cameraShake=Math.max(cameraShake,Math.min(.9,scale*.42));
-  effectSprite(position,15*scale,.17,fireTexture,0xffffff,.95,new THREE.Vector3(),75*scale,true);
-  for(let i=0;i<7;i++){
-    const offset=new THREE.Vector3((Math.random()-.5)*10,(Math.random()-.3)*8,(Math.random()-.5)*10).multiplyScalar(scale);
-    effectSprite(position.clone().add(offset),(6+Math.random()*8)*scale,.38+Math.random()*.32,fireTexture,i%2?0xffa13c:0xffdf8c,.78,offset.clone().multiplyScalar(2.5),12*scale,true);
+  const distance=jet?.position.distanceTo(position)??0;
+  const detail=distance>1800?.35:distance>850?.6:1;
+  const axis=normal.clone().normalize();
+  const lateral=new THREE.Vector3(1,0,0).cross(axis).normalize();
+  if(lateral.lengthSq()<.1)lateral.set(1,0,0);
+  const other=new THREE.Vector3().crossVectors(axis,lateral).normalize();
+  // The bright core is brief. Most of the visible volume is opaque fire,
+  // followed by dust and buoyant smoke rather than one additive fireball.
+  effectSprite(position,8*scale,.09,fireTexture,0xffefcc,.9,new THREE.Vector3(),48*scale,true);
+  const flameCount=Math.max(2,Math.round((kind==='vehicle'?3:5)*detail));
+  for(let i=0;i<flameCount;i++){
+    const angle=Math.random()*Math.PI*2,spread=(2+Math.random()*6)*scale;
+    const offset=lateral.clone().multiplyScalar(Math.cos(angle)*spread).addScaledVector(other,Math.sin(angle)*spread).addScaledVector(axis,Math.random()*3*scale);
+    effectSprite(position.clone().add(offset),(5+Math.random()*6)*scale,.22+Math.random()*.25,fireTexture,i%2?0xffa04c:0xffd684,.58,offset.clone().multiplyScalar(1.2),11*scale,false,{drag:1.7,fadeIn:.08,rotationSpeed:(Math.random()-.5)*2});
   }
-  for(let i=0;i<11;i++){
-    const offset=new THREE.Vector3((Math.random()-.5)*18,Math.random()*7,(Math.random()-.5)*18).multiplyScalar(scale);
-    emitSmoke(position.clone().add(offset),(8+Math.random()*9)*scale,1.5+Math.random()*1.3,i%3?0x5a5b58:0x2b2d2c);
+  const smokeCount=Math.max(2,Math.round((kind==='vehicle'?4:surface?9:6)*detail));
+  for(let i=0;i<smokeCount;i++){
+    const angle=Math.random()*Math.PI*2,radius=Math.random()*5*scale;
+    const offset=lateral.clone().multiplyScalar(Math.cos(angle)*radius).addScaledVector(other,Math.sin(angle)*radius);
+    const velocity=offset.clone().multiplyScalar(.35).add(new THREE.Vector3((Math.random()-.5)*2,3+Math.random()*5,(Math.random()-.5)*2));
+    effectSprite(position.clone().add(offset),(5+Math.random()*5)*scale,1.8+Math.random()*1.6,smokeTexture,i%3?0x4e5050:0x292b2c,.53,velocity,5*scale,false,{delay:.12+Math.random()*.28,drag:.48,fadeIn:.3,rotationSpeed:(Math.random()-.5)*.55});
   }
-  for(let i=0;i<8;i++){
-    const mesh=new THREE.Mesh(new THREE.TetrahedronGeometry((.35+Math.random()*.65)*scale),new THREE.MeshBasicMaterial({color:i%3?0xffbb65:0xffe6a5,transparent:true,opacity:.9,blending:THREE.AdditiveBlending,depthWrite:false}));
+  if(surface){
+    impactRing(position,axis,24*scale,0xa49b8a,.42);
+    for(let i=0,n=Math.round(8*detail);i<n;i++){
+      const angle=Math.random()*Math.PI*2;
+      const velocity=lateral.clone().multiplyScalar(Math.cos(angle)).addScaledVector(other,Math.sin(angle)).multiplyScalar(9+Math.random()*11).addScaledVector(axis,2+Math.random()*5);
+      effectSprite(position.clone().addScaledVector(axis,.5),(3+Math.random()*3)*scale,1.1+Math.random()*.8,smokeTexture,kind==='vehicle'?0x55534e:0xaca397,.39,velocity,5*scale,false,{delay:.07+Math.random()*.14,drag:1.3,fadeIn:.14,rotationSpeed:(Math.random()-.5)*.7});
+    }
+  }
+  for(let i=0,n=Math.round((kind==='vehicle'?4:7)*detail);i<n;i++){
+    const mesh=new THREE.Mesh(new THREE.TetrahedronGeometry((.2+Math.random()*.38)*scale),new THREE.MeshBasicMaterial({color:i%3?0xffab55:0xffdf9b,transparent:true,opacity:.8,blending:THREE.AdditiveBlending,depthWrite:false}));
     mesh.position.copy(position);scene.add(mesh);
-    const velocity=new THREE.Vector3((Math.random()-.5)*100,15+Math.random()*80,(Math.random()-.5)*100).multiplyScalar(scale);
-    particles.push({mesh,velocity,life:.35+Math.random()*.55,maxLife:.9,baseOpacity:.9});
+    const velocity=new THREE.Vector3((Math.random()-.5)*50,10+Math.random()*30,(Math.random()-.5)*50).multiplyScalar(scale).addScaledVector(axis,15*scale);
+    const life=.2+Math.random()*.3;
+    particles.push({mesh,velocity,life,maxLife:life,baseOpacity:.8,gravity:30});
+    trimParticles();
   }
-  while(particles.length>500){const old=particles.shift();scene.remove(old.mesh);if(!old.sharedGeometry)old.mesh.geometry.dispose();old.mesh.material.dispose();}
 }
 function markDamage(position,normal=new THREE.Vector3(0,1,0),size=10){
   const mesh=new THREE.Mesh(new THREE.PlaneGeometry(size,size),new THREE.MeshBasicMaterial({map:scorchTexture,transparent:true,opacity:.83,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-2,side:THREE.DoubleSide}));
@@ -371,9 +403,11 @@ function showCollapse(collapse){
   for(const fragment of fragments.slice(0,36))addCollapseDebris(fragment,building);
   const width=Math.max(12,building.maxX-building.minX,building.maxZ-building.minZ);
   const base=point.clone().setY(building.rubbleHeight);
-  for(let i=0;i<26;i++){
-    const position=base.clone().add(new THREE.Vector3((Math.random()-.5)*width*1.5,Math.random()*building.top*.45,(Math.random()-.5)*width*1.5));
-    emitSmoke(position,8+Math.random()*width*.8,2+Math.random()*2.5,i%4?0x77746e:0x4b4c4b);
+  for(let i=0;i<14;i++){
+    const angle=Math.random()*Math.PI*2,radius=Math.random()*width*.65;
+    const position=base.clone().add(new THREE.Vector3(Math.cos(angle)*radius,Math.random()*building.top*.34,Math.sin(angle)*radius));
+    const velocity=new THREE.Vector3(Math.cos(angle)*(6+Math.random()*8),2+Math.random()*4,Math.sin(angle)*(6+Math.random()*8));
+    effectSprite(position,7+Math.random()*width*.45,2+Math.random()*1.5,smokeTexture,i%4?0xaaa397:0x66625c,.46,velocity,4+width*.14,false,{delay:.16+Math.random()*.48,drag:1.1,fadeIn:.3,rotationSpeed:(Math.random()-.5)*.6});
   }
   const rubble=new THREE.Group();
   for(let i=0;i<12;i++){
@@ -384,7 +418,7 @@ function showCollapse(collapse){
   }
   rubble.position.set(point.x,0,point.z);scene.add(rubble);
   ignite(base.clone().add(new THREE.Vector3(width*.2,1,0)),Math.min(22,width*.8));
-  explode(base,Math.min(2.2,width/14));
+  explode(base,Math.min(2.2,width/14),{surface:true,kind:'building'});
   cameraShake=Math.max(cameraShake,jet?Math.max(0,1-jet.position.distanceTo(base)/280)*.9:0);
 }
 function breakRadar(target){
@@ -417,7 +451,7 @@ function breakRadar(target){
 function ignite(position,size=12){
   const existing=fires.find(fire=>fire.mesh.position.distanceTo(position)<size*.7);
   if(existing){existing.size=Math.max(existing.size,size);return;}
-  const mesh=new THREE.Sprite(new THREE.SpriteMaterial({map:fireTexture,color:0xff9a4a,transparent:true,opacity:.8,depthWrite:false,blending:THREE.AdditiveBlending}));
+  const mesh=new THREE.Sprite(new THREE.SpriteMaterial({map:fireTexture,color:0xffa455,transparent:true,opacity:.67,depthWrite:false,blending:THREE.NormalBlending}));
   mesh.position.copy(position);mesh.scale.set(size*.7,size,1);scene.add(mesh);
   fires.push({mesh,size,smoke:Math.random()*.2,age:0});
   if(fires.length>24){const old=fires.shift();scene.remove(old.mesh);old.mesh.material.dispose();}
@@ -436,6 +470,10 @@ function updateDestruction(dt){
     const floor=previousHeight>rooftop+.1?Math.max(piece.floor,rooftop):piece.floor;
     if(piece.mesh.position.y<=floor){
       piece.mesh.position.y=floor;
+      if(!piece.landed&&piece.velocity.y<-7&&piece.age<7&&jet&&piece.mesh.position.distanceTo(jet.position)<650&&Math.random()<.27){
+        emitSmoke(piece.mesh.position.clone().add(new THREE.Vector3(0,.4,0)),2+Math.random()*3,.65,0x9b968c);
+      }
+      piece.landed=true;
       piece.velocity.y=Math.abs(piece.velocity.y)*.2;
       piece.velocity.x*=.58;piece.velocity.z*=.58;
       piece.spin.multiplyScalar(.6);
@@ -447,7 +485,7 @@ function updateDestruction(dt){
     fire.age+=dt;fire.smoke-=dt;
     const flicker=1+Math.sin(fire.age*17)*.12+Math.sin(fire.age*29)*.08;
     fire.mesh.scale.set(fire.size*.7*flicker,fire.size*flicker,1);
-    fire.mesh.material.opacity=.72+Math.sin(fire.age*21)*.1;
+    fire.mesh.material.opacity=.57+Math.sin(fire.age*21)*.09;
     if(fire.smoke<=0){
       fire.smoke=.2+Math.random()*.13;
       emitSmoke(fire.mesh.position.clone().add(new THREE.Vector3((Math.random()-.5)*2,fire.size*.36,(Math.random()-.5)*2)),fire.size*.8,2.4,0x2b2d2d);
@@ -476,14 +514,14 @@ function cityImpact(origin,direction,distance,fallback,size=10){
   if(!collapsed&&!fragments.length)markDamage(position,normal,size);
   if(size>=8&&!collapsed)ignite(position.clone().addScaledVector(normal,1.2),size);
   for(const car of world?.traffic?.blast?.(position,size*1.5)||[])destroyCar(car);
-  return {position,fractured:fragments.length>0,collapsed};
+  return {position,normal,fractured:fragments.length>0,collapsed};
 }
 function destroyCar(car){
   const hit=world?.traffic?.destroy(car);
   if(!hit)return;
   world?.traffic?.blast?.(hit.position,8);
   markDamage(hit.position.clone().add(new THREE.Vector3(0,.08,0)),new THREE.Vector3(0,1,0),6);
-  explode(hit.position.clone().add(new THREE.Vector3(0,1.2,0)),.8);
+  explode(hit.position.clone().add(new THREE.Vector3(0,1.2,0)),.8,{surface:true,kind:'vehicle'});
   audio.explosion();setRadio('Vehicle destroyed.');
   const group=new THREE.Group();group.position.copy(hit.position);group.rotation.y=hit.heading;
   const body=new THREE.Mesh(new THREE.BoxGeometry(hit.width,.55,hit.length),new THREE.MeshStandardMaterial({color:0x171b1d,metalness:.22,roughness:.9,emissive:0x241008,emissiveIntensity:.35}));
@@ -543,7 +581,7 @@ function updateProjectiles(dt){
       m.mesh.position.copy(meshHit&&meshDistance<=obstruction?meshHit.point:previous.clone().addScaledVector(direction,obstruction));
       const impact=cityImpact(previous,direction,obstruction,m.mesh.position,14);
       m.mesh.position.copy(impact.position);
-      explode(m.mesh.position,.75);audio.explosion();setRadio(impact.collapsed?'Structural failure! Building coming down!':impact.fractured?'Structure breached. Fire and debris!':'Missile impact. Surface damaged.');m.life=0;
+      if(!impact.collapsed)explode(m.mesh.position,.75,{surface:true,normal:impact.normal,kind:'building'});audio.explosion();setRadio(impact.collapsed?'Structural failure! Building coming down!':impact.fractured?'Structure breached. Fire and debris!':'Missile impact. Surface damaged.');m.life=0;
     }
     if(m.life<=0){scene.remove(m.mesh);m.mesh.traverse(o=>{if(o.isMesh){o.geometry.dispose();o.material.dispose();}});disposeMissileTrail(scene,m.trail);projectiles.splice(i,1);}
   }
@@ -583,8 +621,15 @@ function updateProjectiles(dt){
     if(bullet.life<=0){removeObject(bullet.mesh);bullets.splice(i,1);}
   }
   for(let i=particles.length-1;i>=0;i--){
-    const p=particles[i];p.life-=dt;p.mesh.position.addScaledVector(p.velocity,dt);
-    if(p.mesh.material.transparent)p.mesh.material.opacity=(p.baseOpacity??1)*clamp(p.life/p.maxLife,0,1);
+    const p=particles[i];
+    if(p.delay>0){p.delay-=dt;if(p.delay>0)continue;p.mesh.visible=true;}
+    p.life-=dt;
+    if(p.gravity)p.velocity.y-=p.gravity*dt;
+    p.mesh.position.addScaledVector(p.velocity,dt);
+    if(p.drag)p.velocity.multiplyScalar(Math.exp(-p.drag*dt));
+    if(p.rotationSpeed)p.mesh.material.rotation+=p.rotationSpeed*dt;
+    const age=p.maxLife-p.life;
+    if(p.mesh.material.transparent)p.mesh.material.opacity=(p.baseOpacity??1)*clamp(p.life/p.maxLife,0,1)*(p.fadeIn?clamp(age/p.fadeIn,0,1):1);
     if(p.growth)p.mesh.scale.addScalar(dt*p.growth);else p.mesh.scale.multiplyScalar(1+dt*.9);
     if(p.life<=0){scene.remove(p.mesh);if(!p.sharedGeometry)p.mesh.geometry.dispose();p.mesh.material.dispose();particles.splice(i,1);}
   }
@@ -758,7 +803,7 @@ function updateBombs(dt){
     }else{
       const result=cityImpact(previous,direction,Math.min(travel,previous.distanceTo(impact)),impact,22);
       bomb.mesh.position.copy(result.position);
-      explode(result.position,2);audio.explosion();
+      if(!result.collapsed)explode(result.position,2,{surface:true,normal:result.normal,kind:'building'});audio.explosion();
       ignite(result.position.clone().add(new THREE.Vector3(0,2,0)),10);
       applyAreaBlast(result.position,55);
       setRadio('Bomb impact. Check target damage.');
