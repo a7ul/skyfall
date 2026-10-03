@@ -1,12 +1,13 @@
 import * as THREE from 'three';
 import {WebGPURenderer} from 'three/webgpu';
 import {AIRCRAFT,createJet,loadJetModels,updateAfterburners} from '../gameplay/aircraft/jet.js';
+import {flightProfile} from '../gameplay/aircraft/flightProfiles.js';
 import {animateControlSurfaces} from '../gameplay/aircraft/controlSurfaces.js';
 import {createLyonWorld as createWorld} from '../world/lyon/lyonWorld.js';
 import {createRadar,createEnemy,createExtraction,terrainHeight} from '../mission/entities.js';
 import {createStoryDirector,MISSION_STAGES,MISSION_TITLE} from '../mission/story.js';
 import {FlightAudio} from '../audio/flightAudio.js';
-import {applyFlightInput,compassHeading} from '../gameplay/flight/flightMath.js';
+import {compassHeading,createFlightMotion,stepFlightAttitude,stepFlightPath} from '../gameplay/flight/flightMath.js';
 import {keyboardAxes} from '../gameplay/flight/inputMapping.js';
 import {targetAirspeed,advanceAirspeed} from '../gameplay/flight/flightPerformance.js';
 import {chooseLockTarget} from '../gameplay/combat/targeting.js';
@@ -29,6 +30,8 @@ let renderer,world,selected=0,jet,previewJet,mode='menu',paused=false,ended=fals
 const story=createStoryDirector();
 let radioQueue=[],storyHistory=[],stageBannerUntil=0;
 const flightControls={pitchInput:0,rollInput:0,yawInput:0};
+const flightMotion=createFlightMotion(),flightVelocity=new THREE.Vector3();
+let highAlpha=false;
 const keys=new Set();const forward=new THREE.Vector3(),quat=new THREE.Quaternion(),tmp=new THREE.Vector3(),up=new THREE.Vector3(0,1,0);const euler=new THREE.Euler(0,0,0,'YXZ');const clock=new THREE.Clock();
 const clamp=THREE.MathUtils.clamp;
 const surfaceHeight=(x,z)=>Math.max(terrainHeight(x,z),world?.collisionHeight?.(x,z)??-100);
@@ -72,6 +75,7 @@ if(debugOutput){
     },
     get traffic(){return {total:world?.traffic?.count,visible:world?.traffic?.visibleCount,sample:world?.traffic?.sampleVehicle?.position.toArray()};},
     get damage(){return {craters:groundCraters.length,collapsed:collapseRubble.length};},
+    get flight(){return {aircraft:AIRCRAFT[selected].id,position:jet?.position.toArray(),speed,throttle,roll:THREE.MathUtils.radToDeg(roll),pitch:THREE.MathUtils.radToDeg(pitch),rates:{...flightMotion},angleOfAttack:THREE.MathUtils.radToDeg(flightMotion.angleOfAttack),highAlpha,velocity:flightVelocity.toArray(),paused};},
     get storyState(){return {phase,stage:MISSION_STAGES[phase]?.id,targets:(phase===0?radars:enemies).filter(item=>item.alive).map(item=>item.name),objective:$('objective').textContent,radio:$('radio-text').textContent};},
     completeStoryStage(){
       if(phase===3){finish(true);return {complete:ended,title:$('overlay-title').textContent};}
@@ -106,7 +110,7 @@ function enterMissionStage(index){
   $('stage-banner').classList.remove('hidden');
   updateObjective();
 }
-function updateJetOptions(){ui.options.innerHTML='';AIRCRAFT.forEach((spec,i)=>{const b=document.createElement('button');b.className='jet-option'+(selected===i?' active':'');b.innerHTML=`<small>${String(i+1).padStart(2,'0')} / ${spec.role.split(' ')[0]}</small><strong>${spec.label}</strong>`;b.onclick=()=>{selected=i;audio.click();updateJetOptions();setPreviewJet();};ui.options.appendChild(b)});const a=AIRCRAFT[selected];ui.count.textContent=`${String(selected+1).padStart(2,'0')} / ${String(AIRCRAFT.length).padStart(2,'0')}`;ui.detail.textContent=`${a.origin}  /  ${a.role}  /  SPEED ${Math.round(a.speed*100)}  /  AGILITY ${Math.round(a.turn*100)}`;}
+function updateJetOptions(){ui.options.innerHTML='';AIRCRAFT.forEach((spec,i)=>{const b=document.createElement('button');b.className='jet-option'+(selected===i?' active':'');b.innerHTML=`<small>${String(i+1).padStart(2,'0')} / ${spec.role.split(' ')[0]}</small><strong>${spec.label}</strong>`;b.onclick=()=>{selected=i;audio.click();updateJetOptions();setPreviewJet();};ui.options.appendChild(b)});const a=AIRCRAFT[selected],profile=flightProfile(a.id);ui.count.textContent=`${String(selected+1).padStart(2,'0')} / ${String(AIRCRAFT.length).padStart(2,'0')}`;ui.detail.textContent=`${a.origin}  /  ${profile.name.toUpperCase()}  /  CRUISE ${profile.cruiseSpeed}  /  ROLL ${Math.round(profile.rollRate*180/Math.PI)}°/S${profile.thrustVectoring?'  /  X HIGH-ALPHA':''}`;}
 function setPreviewJet(){if(previewJet)removeObject(previewJet);previewJet=createJet(AIRCRAFT[selected],2.15);previewJet.position.set(0,180,300);previewJet.rotation.set(.02,-.18,-.12);scene.add(previewJet);}
 
 async function init(){
@@ -120,7 +124,7 @@ async function init(){
 
 function removeObject(object){if(!object)return;scene.remove(object);if(object.userData.afterburners){for(const exhaust of object.userData.afterburners)exhaust.traverse(child=>{if(child.isMesh)child.material.dispose();});return;}object.traverse(child=>{if(child.isMesh){child.geometry.dispose();const materials=Array.isArray(child.material)?child.material:[child.material];for(const material of materials)material?.dispose();}});}
 function clearSceneObjects(){removeObject(jet);jet=null;removeObject(previewJet);previewJet=null;for(const t of [...radars,...enemies])removeObject(t.group);for(const m of [...projectiles,...bombProjectiles,...bullets])removeObject(m.mesh);for(const m of projectiles)disposeMissileTrail(scene,m.trail);for(const trail of lingeringTrails)disposeMissileTrail(scene,trail);for(const effect of nuclearEffects)disposeNuclearEffect(effect);for(const shot of enemyShots)removeObject(shot.mesh);for(const p of particles){scene.remove(p.mesh);if(!p.sharedGeometry)p.mesh.geometry.dispose();p.mesh.material.dispose();}for(const mark of damageMarks){scene.remove(mark);mark.geometry.dispose();mark.material.dispose();}for(const crater of groundCraters)removeObject(crater);for(const wreck of wrecks)removeObject(wreck.group);for(const fire of fires)for(const sprite of [fire.mesh,...fire.layers]){scene.remove(sprite);sprite.material.dispose();}for(const piece of debris)removeObject(piece.mesh);for(const rubble of [...blastRubble,...collapseRubble])removeObject(rubble);blastRubble.length=collapseRubble.length=0;world?.resetDamage?.();world?.traffic?.reset();if(extraction)removeObject(extraction.group);radars=[];enemies=[];enemyShots=[];projectiles=[];bombProjectiles=[];nuclearEffects=[];bullets=[];particles=[];damageMarks=[];groundCraters=[];wrecks=[];fires=[];debris=[];extraction=null;blastFlash=0;$('blast-flash').style.opacity='0';$('nuke-countdown').classList.add('hidden');}
-function start(free=false){if(!renderer)return;audio.setGunFiring(false);clearSceneObjects();audio.init();audio.ctx?.resume();audio.setActive(true);mode=free?'free':'mission';paused=false;ended=false;phase=0;elapsed=0;kills=0;shots=0;missiles=free?99:8;bombAmmo=free?99:4;nuclearAmmo=free?Infinity:1;bombCooldown=0;health=100;throttle=free?.3:.68;speed=targetAirspeed(throttle,AIRCRAFT[selected].speed);pitch=0;yaw=0;roll=0;flightControls.pitchInput=flightControls.rollInput=flightControls.yawInput=0;quat.identity();forward.set(0,0,-1);lockTime=0;target=null;cameraMode=0;mouseActive=false;mouseX=0;mouseY=0;gamepadWasPressed=bombWasPressed=nukeWasPressed=false;airbrake=false;hudTimer=0;cityFloor=-100;cityFloorTimer=0;weaponCueTimer=0;cameraShake=0;radioQueue=[];storyHistory=[];jet=createJet(AIRCRAFT[selected]);jet.position.set(0,free?145:430,free?550:950);scene.add(jet);if(!free){radars=[createRadar(scene,-180,-320,'RELAY ALPHA',surfaceHeight(-180,-320)),createRadar(scene,520,-760,'RELAY BRAVO',surfaceHeight(520,-760))];enterMissionStage(0);$('radio-text').textContent='';}else{setRadio('Free flight authorized. Weapons free. Fire a missile with or without a lock.');$('stage-banner').classList.add('hidden');}
+function start(free=false){if(!renderer)return;audio.setGunFiring(false);clearSceneObjects();audio.init();audio.ctx?.resume();audio.setActive(true);mode=free?'free':'mission';paused=false;ended=false;phase=0;elapsed=0;kills=0;shots=0;missiles=free?99:8;bombAmmo=free?99:4;nuclearAmmo=free?Infinity:1;bombCooldown=0;health=100;throttle=free?.3:.68;speed=targetAirspeed(throttle,flightProfile(AIRCRAFT[selected].id));pitch=0;yaw=0;roll=0;flightControls.pitchInput=flightControls.rollInput=flightControls.yawInput=0;flightMotion.pitchRate=flightMotion.rollRate=flightMotion.yawRate=flightMotion.angleOfAttack=0;quat.identity();forward.set(0,0,-1);flightVelocity.copy(forward).multiplyScalar(speed);highAlpha=false;lockTime=0;target=null;cameraMode=0;mouseActive=false;mouseX=0;mouseY=0;gamepadWasPressed=bombWasPressed=nukeWasPressed=false;airbrake=false;hudTimer=0;cityFloor=-100;cityFloorTimer=0;weaponCueTimer=0;cameraShake=0;radioQueue=[];storyHistory=[];jet=createJet(AIRCRAFT[selected]);jet.position.set(0,free?145:430,free?550:950);scene.add(jet);if(!free){radars=[createRadar(scene,-180,-320,'RELAY ALPHA',surfaceHeight(-180,-320)),createRadar(scene,520,-760,'RELAY BRAVO',surfaceHeight(520,-760))];enterMissionStage(0);$('radio-text').textContent='';}else{setRadio('Free flight authorized. Weapons free. Fire a missile with or without a lock.');$('stage-banner').classList.add('hidden');}
   ui.menu.classList.add('hidden');ui.overlay.classList.add('hidden');ui.hud.classList.remove('hidden');$('mode-label').textContent=free?'FREE FLIGHT':'MISSION 01 / 04';$('mission-name').textContent=free?'LYON // FREE FLIGHT':MISSION_TITLE;updateObjective();updateCamera(1);updateHud();audio.click();}
 function hangar(){audio.setActive(false);paused=false;mode='menu';clearSceneObjects();setPreviewJet();ui.overlay.classList.add('hidden');ui.hud.classList.add('hidden');ui.menu.classList.remove('hidden');document.exitPointerLock?.();}
 function finish(win){audio.setActive(false);paused=true;ended=true;document.exitPointerLock?.();$('overlay-kicker').textContent=win?'OPERATION COMPLETE':'AIRCRAFT LOST';$('overlay-title').textContent=win?'LYON CAN BREATHE':'SIGNAL LOST';$('overlay-text').textContent=win?'Mercy Seven is through the corridor with the evidence. Wraith is gone, but the files identify another Sable cell beyond Lyon. Viper One, the fight continues.':'Echo has lost Viper One. Mercy Seven remains trapped beneath Sable airspace. The corridor needs another attempt.';$('overlay-stats').innerHTML=`<span>TIME ${formatTime(elapsed)}</span><span>TARGETS ${kills}</span><span>MISSILES FIRED ${shots}</span>`;$('mission-log').classList.add('hidden');$('pause-controls').classList.add('hidden');$('resume-button').classList.add('hidden');ui.overlay.classList.remove('hidden');if(win)audio.tone(460,.55,'triangle',.13,860);}
@@ -173,22 +177,24 @@ function reactToEnemyHit(enemy){
   else if(enemy.health<enemy.maxHealth*.5&&!enemy.damagedCue){enemy.damagedCue=true;queueRadio('ECHO / AWACS','Wraith is losing altitude. Stay on him, Viper.');}
 }
 
-function getControls(){const gp=navigator.getGamepads?.()[0];let {pitchInput,rollInput,yawInput,throttleInput}=keyboardAxes(keys),fire=keys.has('Space')||keys.has('MouseLeft'),missile=keys.has('KeyF')||keys.has('MouseRight'),bomb=keys.has('KeyB'),nuke=keys.has('KeyN');if(mouseActive){pitchInput=clamp(pitchInput+mouseY*.7,-1,1);rollInput=clamp(rollInput-mouseX*.7,-1,1);}if(gp){const dz=a=>Math.abs(a)<.12?0:a;pitchInput=clamp(pitchInput+dz(gp.axes[1]||0),-1,1);rollInput=clamp(rollInput-dz(gp.axes[0]||0),-1,1);yawInput=clamp(yawInput+(gp.buttons[4]?.pressed?1:0)-(gp.buttons[5]?.pressed?1:0),-1,1);throttleInput=clamp(throttleInput+(gp.buttons[7]?.value||0)-(gp.buttons[6]?.value||0),-1,1);fire=fire||gp.buttons[0]?.pressed;missile=missile||gp.buttons[1]?.pressed;bomb=bomb||gp.buttons[2]?.pressed;nuke=nuke||gp.buttons[3]?.pressed;}return{pitchInput,rollInput,yawInput,throttleInput,fire,missile,bomb,nuke};}
+function getControls(){const gp=navigator.getGamepads?.()[0];let {pitchInput,rollInput,yawInput,throttleInput}=keyboardAxes(keys),fire=keys.has('Space')||keys.has('MouseLeft'),missile=keys.has('KeyF')||keys.has('MouseRight'),bomb=keys.has('KeyB'),nuke=keys.has('KeyN'),highAlpha=keys.has('KeyX');if(mouseActive){pitchInput=clamp(pitchInput+mouseY*.7,-1,1);rollInput=clamp(rollInput-mouseX*.7,-1,1);}if(gp){const dz=a=>Math.abs(a)<.12?0:a;pitchInput=clamp(pitchInput+dz(gp.axes[1]||0),-1,1);rollInput=clamp(rollInput-dz(gp.axes[0]||0),-1,1);yawInput=clamp(yawInput+(gp.buttons[4]?.pressed?1:0)-(gp.buttons[5]?.pressed?1:0),-1,1);throttleInput=clamp(throttleInput+(gp.buttons[7]?.value||0)-(gp.buttons[6]?.value||0),-1,1);fire=fire||gp.buttons[0]?.pressed;missile=missile||gp.buttons[1]?.pressed;bomb=bomb||gp.buttons[2]?.pressed;nuke=nuke||gp.buttons[3]?.pressed;highAlpha=highAlpha||gp.buttons[10]?.pressed;}return{pitchInput,rollInput,yawInput,throttleInput,fire,missile,bomb,nuke,highAlpha};}
 function updateFlight(dt){
-  const c=getControls(),spec=AIRCRAFT[selected];
+  const c=getControls(),spec=AIRCRAFT[selected],profile=flightProfile(spec.id);
   throttle=clamp(throttle+c.throttleInput*dt*.34,.2,1);
-  for(const axis of ['pitchInput','rollInput','yawInput'])flightControls[axis]=THREE.MathUtils.damp(flightControls[axis],c[axis],12,dt);
-  speed=advanceAirspeed(speed,throttle,spec.speed,airbrake,forward.y,flightControls,dt);
-  applyFlightInput(quat,flightControls,dt,spec.turn,speed,airbrake);
+  for(const axis of ['pitchInput','rollInput','yawInput'])flightControls[axis]=THREE.MathUtils.damp(flightControls[axis],c[axis],10,dt);
+  highAlpha=!!c.highAlpha&&flightControls.pitchInput>.35&&profile.thrustVectoring>0&&speed>38&&speed<145;
+  speed=advanceAirspeed(speed,throttle,profile,airbrake,flightVelocity.y/Math.max(speed,1),flightControls,dt,flightMotion.angleOfAttack,highAlpha);
+  stepFlightAttitude(quat,flightMotion,flightControls,dt,profile,speed,airbrake,highAlpha);
   jet.quaternion.copy(quat);
   animateControlSurfaces(jet,flightControls,dt,airbrake);
   forward.set(0,0,-1).applyQuaternion(quat).normalize();
+  flightMotion.angleOfAttack=stepFlightPath(flightVelocity,forward,speed,dt,profile,highAlpha);
   yaw=Math.atan2(-forward.x,-forward.z);
   euler.setFromQuaternion(quat,'YXZ');pitch=euler.x;roll=euler.z;
   if(mouseActive){const returnRate=Math.exp(-dt*5);mouseX*=returnRate;mouseY*=returnRate;}
   const previousPosition=jet.position.clone();
-  jet.position.addScaledVector(forward,speed*dt);
-  jet.position.y-=Math.max(0,44-speed)*.48*dt;
+  jet.position.addScaledVector(flightVelocity,dt);
+  jet.position.y-=Math.max(0,profile.stallSpeed-speed)*.75*dt;
   updateAfterburners(jet,throttle,elapsed,airbrake);
   const right=tmp.set(1,0,0).applyQuaternion(quat);
   cityFloorTimer-=dt;
@@ -206,7 +212,7 @@ function updateFlight(dt){
     surfaceHeight(jet.position.x-right.x*6,jet.position.z-right.z*6));
   if(resolveSurfaceContact(jet.position,floor)){health=0;explode(jet.position,2);audio.explosion();finish(false);return;}
   if(jet.position.y-floor<35&&forward.y<-.04&&elapsed-lastWarning>3){setRadio('Terrain! Pull up!');audio.warning();lastWarning=elapsed;}
-  if(speed<42&&elapsed-lastWarning>5){setRadio('Stall warning. Add throttle and lower the nose.');lastWarning=elapsed;}
+  if(speed<profile.stallSpeed&&elapsed-lastWarning>5){setRadio('Stall warning. Add throttle and lower the nose.');lastWarning=elapsed;}
   audio.setGunFiring(c.fire);
   if(c.fire)fireGun(dt);else gunTime=0;
   if(c.missile&&!gamepadWasPressed)fireMissile();gamepadWasPressed=!!c.missile;
@@ -1047,7 +1053,7 @@ function updateEnemyShots(dt){
     if(hit||blocked||shot.life<=0){removeObject(shot.mesh);enemyShots.splice(i,1);}
   }
 }
-function updateCamera(dt){if(!jet)return;const local=cameraMode===0?new THREE.Vector3(0,3.6,19):cameraMode===1?new THREE.Vector3(0,.74,-3.1):new THREE.Vector3(14,5.5,22);const desired=local.applyQuaternion(quat).add(jet.position);camera.position.copy(desired);cameraShake=THREE.MathUtils.damp(cameraShake,0,9,dt);if(cameraShake>.005)camera.position.add(new THREE.Vector3((Math.random()-.5)*cameraShake,(Math.random()-.5)*cameraShake,(Math.random()-.5)*cameraShake));const look=jet.position.clone().addScaledVector(forward,cameraMode===1?350:210);if(cameraMode===2)look.add(new THREE.Vector3(0,1,0));const aircraftUp=up.clone().applyQuaternion(quat);camera.up.copy(cameraMode===1?aircraftUp:up.clone().lerp(aircraftUp,.18).normalize());camera.lookAt(look);jet.visible=cameraMode!==1;$('cockpit').classList.toggle('hidden',cameraMode!==1);$('camera-state').textContent=['CHASE CAM','COCKPIT CAM','CINEMATIC CAM'][cameraMode];}
+function updateCamera(dt){if(!jet)return;const local=cameraMode===0?new THREE.Vector3(0,3.6,19):cameraMode===1?new THREE.Vector3(0,.74,-3.1):new THREE.Vector3(14,5.5,22);const desired=local.applyQuaternion(quat).add(jet.position);camera.position.lerp(desired,cameraMode===1||dt>=1?1:1-Math.exp(-9*dt));cameraShake=THREE.MathUtils.damp(cameraShake,0,9,dt);if(cameraShake>.005)camera.position.add(new THREE.Vector3((Math.random()-.5)*cameraShake,(Math.random()-.5)*cameraShake,(Math.random()-.5)*cameraShake));const look=jet.position.clone().addScaledVector(forward,cameraMode===1?350:210);if(cameraMode===2)look.add(new THREE.Vector3(0,1,0));const aircraftUp=up.clone().applyQuaternion(quat);camera.up.copy(cameraMode===1?aircraftUp:up.clone().lerp(aircraftUp,.18).normalize());camera.lookAt(look);jet.visible=cameraMode!==1;$('cockpit').classList.toggle('hidden',cameraMode!==1);$('camera-state').textContent=['CHASE CAM','COCKPIT CAM','CINEMATIC CAM'][cameraMode];}
 function updateMenuCamera(dt){if(!previewJet)return;const t=performance.now()*.00014;animateControlSurfaces(previewJet,{pitchInput:Math.sin(t*7)*.35,rollInput:Math.sin(t*5)*.45,yawInput:Math.sin(t*4)*.3},dt);updateAfterburners(previewJet,.91,t*140);previewJet.rotation.y=-.22+Math.sin(t)*.07;previewJet.rotation.z=-.09+Math.sin(t*1.4)*.025;camera.position.set(80+Math.sin(t)*5,265,530);camera.up.set(0,1,0);camera.lookAt(-20,65,30);}
 function updateRadar(){const wrap=$('radar-contacts');wrap.innerHTML='';if(!jet)return;const contacts=[...radars,...enemies].filter(t=>t.alive);if(extraction)contacts.push({position:extraction.position,type:'friendly'});for(const t of contacts){const d=t.position.clone().sub(jet.position);const planar=new THREE.Vector3(d.x,0,d.z).applyAxisAngle(up,-yaw);const x=clamp(50+planar.x/80,-1,101),y=clamp(50+planar.z/80,-1,101);if(x<0||x>100||y<0||y>100)continue;const dot=document.createElement('div');dot.className='contact'+(t.type==='friendly'?' friendly':'');dot.style.left=x+'%';dot.style.top=y+'%';wrap.appendChild(dot);}}
 function updateHud(){
@@ -1058,7 +1064,7 @@ function updateHud(){
   $('agl').textContent=String(Math.max(0,Math.round(agl*3.281))).padStart(4,'0');
   const heading=Math.round(compassHeading(forward))%360;
   $('heading').textContent=String(heading).padStart(3,'0');
-  $('flight-attitude').textContent=`PITCH ${THREE.MathUtils.radToDeg(pitch)>=0?'+':''}${Math.round(THREE.MathUtils.radToDeg(pitch))}° · ROLL ${THREE.MathUtils.radToDeg(roll)>=0?'+':''}${Math.round(THREE.MathUtils.radToDeg(roll))}° · YAW ${String(heading).padStart(3,'0')}°`;
+  $('flight-attitude').textContent=`PITCH ${THREE.MathUtils.radToDeg(pitch)>=0?'+':''}${Math.round(THREE.MathUtils.radToDeg(pitch))}° · ROLL ${THREE.MathUtils.radToDeg(roll)>=0?'+':''}${Math.round(THREE.MathUtils.radToDeg(roll))}° · YAW ${String(heading).padStart(3,'0')}° · α ${Math.round(THREE.MathUtils.radToDeg(flightMotion.angleOfAttack))}°`;
   $('throttle').textContent=String(Math.round(throttle*100)).padStart(2,'0');
   $('missiles').textContent=String(missiles).padStart(2,'0');
   $('health').textContent=Math.ceil(health)+'%';$('health-bar').style.width=health+'%';$('clock').textContent=formatTime(elapsed);
@@ -1067,7 +1073,7 @@ function updateHud(){
   const armed=bombProjectiles.find(bomb=>bomb.nuclear&&bomb.armed);
   $('nuke-countdown').classList.toggle('hidden',!armed);
   if(armed)$('nuke-countdown').textContent=`SPECIAL WEAPON ARMED · ${Math.max(0,armed.fuse).toFixed(1)} S · CLEAR AREA`;
-  $('flight-state').textContent=agl<35&&forward.y<-.04?'TERRAIN WARNING':airbrake?'AIR BRAKE':speed<42?'STALL WARNING':Math.abs(roll)>1.1?'HIGH BANK ANGLE':throttle>.88&&AIRCRAFT[selected].afterburner!==false?'AFTERBURNER':'FLIGHT STABLE';
+  $('flight-state').textContent=agl<35&&flightVelocity.y<-.04*speed?'TERRAIN WARNING':speed<flightProfile(AIRCRAFT[selected].id).stallSpeed?'STALL WARNING':highAlpha?'HIGH ALPHA / VECTORING':airbrake?'AIR BRAKE':Math.abs(roll)>1.1?'HIGH BANK ANGLE':throttle>.88&&AIRCRAFT[selected].afterburner!==false?'AFTERBURNER':'FLIGHT STABLE';
   updateRadar();
   const ace=mode==='mission'&&phase===2?enemies.find(enemy=>enemy.ace&&enemy.alive):null;
   $('ace-status').classList.toggle('hidden',!ace);
