@@ -4,12 +4,15 @@
 
 This project asks how far modern browser graphics and AI-assisted development can go. The challenge was to direct and playtest the game through prompts and visuals, without manually reading the implementation code. WebGPU, local map storage, open city data, and off-the-shelf aircraft assets made a browser-only version possible without an API key, billing account, or game installation.
 
-<video src="https://github.com/a7ul/skyfall/releases/download/assets/gameplay.mp4" width="320" height="240" controls></video>
+## Gameplay video
 
+[![F-22 flying above Lyon in the gameplay recording](docs/media/gameplay-video-poster.jpg)](https://github.com/a7ul/skyfall/releases/download/assets/gameplay.mp4)
 
-[![Promotional artwork: F-22 over Lyon](https://github.com/a7ul/skyfall/releases/download/assets/f22-over-lyon.png)](https://github.com/a7ul/skyfall/releases/download/assets/f22-over-lyon.png)
+[Download the full gameplay recording (MP4, 1.05 GB)](https://github.com/a7ul/skyfall/releases/download/assets/gameplay.mp4). The three screenshots here are frames from that recording.
 
-*Generated promotional artwork. The gameplay captures below show the current build.*
+| Low flight over Lyon | River approach |
+| --- | --- |
+| [![F-22 flying low over Lyon](docs/media/gameplay-city.jpg)](https://github.com/a7ul/skyfall/releases/download/assets/gameplay.mp4) | [![F-22 approaching the river in Lyon](docs/media/gameplay-river.jpg)](https://github.com/a7ul/skyfall/releases/download/assets/gameplay.mp4) |
 
 ## Play in Chrome
 
@@ -39,22 +42,6 @@ The folder selection is remembered for the same browser and site across refreshe
 | Separate pitch, roll, and yaw; aircraft-specific handling; throttle, air brake, stalls, and animated control surfaces. | Cannon, guided or unguided missiles, gravity bombs, and a stylized special weapon. Surface impacts create different water, road, and building effects. | 2023 Lyon photomesh with progressive detail, road traffic, ground targets, and an approximate collision field. |
 
 The seven playable aircraft are the **F-22 Raptor, F-35 Lightning II, Su-57 Felon, Su-35 Flanker-E, F-15E Strike Eagle, F-16 Fighting Falcon, and A-10 Thunderbolt II**. Their game flight profiles keep different roles while compressing real-world speed for city flying. This is an arcade air-combat game, not a flight-training simulation.
-
-## Actual gameplay
-
-These captures are from the playable Lyon build. Open an image for its full-resolution file in the [media release](https://github.com/a7ul/skyfall/releases/tag/assets).
-
-| Golden-hour skyline | Su-35 afterburners | F-35 cinematic view |
-| --- | --- | --- |
-| [![Fighter over Lyon at golden hour](https://github.com/a7ul/skyfall/releases/download/assets/golden-hour-lyon-gameplay.png)](https://github.com/a7ul/skyfall/releases/download/assets/golden-hour-lyon-gameplay.png) | [![Su-35 above Lyon with afterburners](https://github.com/a7ul/skyfall/releases/download/assets/su35-afterburner-gameplay.png)](https://github.com/a7ul/skyfall/releases/download/assets/su35-afterburner-gameplay.png) | [![F-35 cinematic camera over Lyon](https://github.com/a7ul/skyfall/releases/download/assets/f35-cinematic-golden-hour.png)](https://github.com/a7ul/skyfall/releases/download/assets/f35-cinematic-golden-hour.png) |
-
-### Visual direction
-
-These are **generated promotional images**, not screenshots of current gameplay.
-
-| Su-57 over the river | F-35 missile engagement |
-| --- | --- |
-| [![Promotional artwork: Su-57 over Lyon](https://github.com/a7ul/skyfall/releases/download/assets/su57-over-lyon.png)](https://github.com/a7ul/skyfall/releases/download/assets/su57-over-lyon.png) | [![Promotional artwork: F-35 missile engagement](https://github.com/a7ul/skyfall/releases/download/assets/f35-missile-engagement.png)](https://github.com/a7ul/skyfall/releases/download/assets/f35-missile-engagement.png) |
 
 ## Tech stack
 
@@ -107,6 +94,6 @@ Bank with A or D, then pitch into the turn. Holding roll or pitch completes a fu
 
 ## Scope and credits
 
-This is one playable mission and free flight. Destruction, explosions, and collision heights are game approximations. City quality depends on the captured map tiles, altitude, and hardware. The promotional artwork is a visual target rather than a depiction of every in-game effect. No gameplay video is included yet.
+This is one playable mission and free flight. Destruction, explosions, and collision heights are game approximations. City quality depends on the captured map tiles, altitude, and hardware.
 
 The aircraft are third-party assets under **noncommercial licenses**; review [aircraft attribution](public/assets/aircraft/ATTRIBUTION.md) before redistribution or commercial use. The HDR sky is from [Poly Haven](https://polyhaven.com/a/kloofendal_48d_partly_cloudy_puresky), CC0. See [audio credits](public/assets/audio/CREDITS.md), [flight-model references](docs/design/flight-model.md), [gameplay notes](docs/design/gameplay-design.md), and [afterburner art provenance](docs/art/README.md).
