@@ -66,6 +66,19 @@ export async function createLyonWorld(scene,onProgress=()=>{},renderer,camera){
   scene.add(tiles.group);
   const traffic=await createTraffic(scene,'/assets/lyon/traffic.json');
   const collisionHeight=(x,z)=>sampleCollisionHeight(collisionField,heights,x,z);
+  // The OSM height field is only an approximation. Probe the actual loaded
+  // photomesh for aircraft clearance and visible weapon impact placement.
+  const cityRay=new THREE.Raycaster();cityRay.firstHitOnly=true;
+  const down=new THREE.Vector3(0,-1,0);
+  function raycastCity(origin,direction,maxDistance=1200){
+    cityRay.set(origin,direction);
+    cityRay.far=maxDistance;
+    return cityRay.intersectObject(tiles.group,false)[0]||null;
+  }
+  function visualHeight(x,z){
+    const hit=raycastCity(new THREE.Vector3(x,1200,z),down,1500);
+    return hit?.point.y??null;
+  }
   const inverse=new THREE.Matrix4(),ahead=new THREE.Vector3();
   let frameAverage=16.7;
   const frameSamples=[];
@@ -91,7 +104,7 @@ export async function createLyonWorld(scene,onProgress=()=>{},renderer,camera){
     camera.updateMatrixWorld();tiles.update();
   }
   return {
-    tiles,traffic,collisionHeight,ready,
+    tiles,traffic,collisionHeight,visualHeight,raycastCity,ready,
     city:{get loadedCount(){return loaded;}},
     update,updateTiles,
     get quality(){const sorted=[...frameSamples].sort((a,b)=>a-b);return {errorTarget:tiles.errorTarget,frameMs:frameAverage,p95FrameMs:sorted[Math.floor(sorted.length*.95)]??0,cacheMB:Math.round(tiles.lruCache.cachedBytes/1048576),cacheLimitMB:Math.round(tiles.lruCache.maxBytesSize/1048576),deviceMemoryGB:navigator.deviceMemory??null,...tiles.stats};},

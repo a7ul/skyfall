@@ -1,5 +1,5 @@
 import {test,expect} from 'bun:test';
-import {sampleCollisionHeight,firstHeightIntersection} from '../src/collisionField.js';
+import {sampleCollisionHeight,firstHeightIntersection,resolveSurfaceContact} from '../src/collisionField.js';
 import {readFileSync} from 'node:fs';
 
 test('city height field reports rooftops and leaves open water clear',()=>{
@@ -27,4 +27,11 @@ test('bundled Lyon collision field matches the playable road area',()=>{
   expect(heights.length).toBe(field.width*field.depth);
   expect(sampleCollisionHeight(field,heights,0,0)).toBeGreaterThanOrEqual(0);
   expect(sampleCollisionHeight(field,heights,2000,0)).toBe(-100);
+});
+
+test('a ground strike leaves the aircraft above the visible surface',()=>{
+  const jet={x:10,y:11,z:20};
+  expect(resolveSurfaceContact(jet,22)).toBe(true);
+  expect(jet.y).toBe(30);
+  expect(resolveSurfaceContact(jet,22)).toBe(false);
 });

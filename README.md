@@ -15,7 +15,7 @@ The tile streamer gives nearby, low-altitude blocks a finer screen-space target,
 
 ## Mission
 
-**Break the Silence:** A rogue defense network is jamming the evacuation route through Lyon. Destroy Relay Alpha and Relay Bravo, shoot down the hostile interceptors, and fly through the green extraction gate. Hold a target near the reticle for about 1.35 seconds to lock a missile. Free flight has unlimited missiles and destructible road traffic.
+**Break the Silence:** A rogue defense network is jamming the evacuation route through Lyon. Destroy Relay Alpha and Relay Bravo, shoot down the hostile interceptors, and fly through the green extraction gate. Hold a target near the reticle for about 1.35 seconds to guide a missile; missiles also launch straight ahead without a lock. Free flight has unlimited missiles and destructible road traffic.
 
 ## Controls
 
@@ -27,7 +27,7 @@ The tile streamer gives nearby, low-altitude blocks a finer screen-space target,
 | Shift / Ctrl | Increase / decrease throttle |
 | Mouse movement after clicking the game | Pitch and bank (returns to center) |
 | Space / left click | Cannon |
-| F / right click | Guided missile (requires lock) |
+| F / right click | Missile; guided with a lock, straight flight without one |
 | G | Toggle air brake |
 | C | Cycle chase, cockpit, and cinematic cameras |
 | M | Mute / unmute |
@@ -43,4 +43,4 @@ Road routes and an approximate 5 m building collision grid are generated from [O
 
 The F-22, F-35, Su-57, and Su-35 use off-the-shelf textured models. Their sources and noncommercial licenses are in [public/models/ATTRIBUTION.md](public/models/ATTRIBUTION.md). The sky and HDR lighting are adapted from Poly Haven's [Kloppenheim 05 (Pure Sky)](https://polyhaven.com/a/kloppenheim_05_puresky), CC0.
 
-Afterburners pulse with throttle. Guided missiles have visible motors and smoke trails. Impacts add flash, shockwave, sparks, smoke, and synthesized audio. Traffic can be locked and destroyed with missiles or the cannon. Restarting restores traffic. Mission bandits bank into pursuit, warn before firing, and use visible projectiles. See [gameplay tuning notes](docs/gameplay-design.md).
+Afterburners pulse with throttle. The HUD draws a predicted missile path and impact point. Missiles have visible motors and smoke trails; cannon rounds travel through the scene. Impacts produce layered fire, smoke, sparks, sound, and persistent scorch marks on loaded city surfaces. These marks are overlays: the streamed photomesh geometry itself is not cut or fractured. More cars and lightweight pedestrians populate local roads; blasts affect both, and car wrecks persist until restart or the capped wreck budget is reached. Restarting restores traffic. Mission bandits bank into pursuit, warn before firing, and use visible projectiles. See [gameplay tuning notes](docs/gameplay-design.md).

@@ -56,8 +56,8 @@ function smoothRoad(points){
   return points.map((p,i)=>[p[0],(low[Math.max(0,i-1)]+low[i]+low[Math.min(low.length-1,i+1)])/3,p[2]]);
 }
 
-export async function createTraffic(scene,url){
-  const data=await fetch(url).then(r=>r.json());
+export async function createTraffic(scene,url,load=fetch){
+  const data=await load(url).then(r=>r.json());
   const routes=data.routes.filter(r=>r.points.length>2).map(route=>{
     const points=smoothRoad(route.points),cumulative=[0];
     for(let i=1;i<points.length;i++){
@@ -69,8 +69,9 @@ export async function createTraffic(scene,url){
   const cars=[];
   for(let i=0;i<routes.length;i++){
     const route=routes[i];
-    if(i%2===0||route.length>150)cars.push({route,offset:(i*.61803398875%1)*route.length,speed:route.speed*(.36+(i%5)*.025),variant:i%4,color:i%PAINT.length});
-    if(route.length>220&&i%3===0)cars.push({route,offset:route.length*.55,speed:route.speed*.4,variant:(i+2)%4,color:(i+3)%PAINT.length});
+    cars.push({route,offset:(i*.61803398875%1)*route.length,speed:route.speed*(.36+(i%5)*.025),variant:i%4,color:i%PAINT.length});
+    if(route.length>120&&i%2===0)cars.push({route,offset:route.length*.55,speed:route.speed*.4,variant:(i+2)%4,color:(i+3)%PAINT.length});
+    if(route.length>350&&i%3===0)cars.push({route,offset:route.length*.24,speed:route.speed*.37,variant:(i+1)%4,color:(i+5)%PAINT.length});
   }
   for(const car of cars){
     const spec=TYPES[car.variant];
@@ -80,9 +81,19 @@ export async function createTraffic(scene,url){
   const groups=TYPES.map((spec,type)=>{
     const entries=cars.filter(car=>car.variant===type),meshes=parts(scene,spec,entries.length);
     entries.forEach((car,index)=>{car.instance=index;meshes[0].setColorAt(index,new THREE.Color(PAINT[car.color]));});
-    meshes[0].instanceColor.needsUpdate=true;
+    if(meshes[0].instanceColor)meshes[0].instanceColor.needsUpdate=true;
     return meshes;
   });
+  const pedestrians=routes.filter(route=>route.length>75).slice(0,350).map((route,i)=>({
+    route,offset:(i*.75487766%1)*route.length,speed:1.05+(i%5)*.13,side:i%2?1:-1,
+    position:new THREE.Vector3(),alive:true,visible:false,panic:0,color:i%6
+  }));
+  const body=new THREE.InstancedMesh(new THREE.CapsuleGeometry(.24,.83,3,5),new THREE.MeshStandardMaterial({color:0xffffff,roughness:.95}),pedestrians.length);
+  const heads=new THREE.InstancedMesh(new THREE.IcosahedronGeometry(.19,1),new THREE.MeshStandardMaterial({color:0xc4a68c,roughness:1}),pedestrians.length);
+  const clothing=[0x293e4b,0x68604f,0x353b3d,0x72534d,0x595e68,0x77766f];
+  pedestrians.forEach((person,i)=>body.setColorAt(i,new THREE.Color(clothing[person.color])));
+  body.instanceColor.needsUpdate=true;
+  for(const mesh of [body,heads]){mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);mesh.frustumCulled=false;scene.add(mesh);}
   const dummy=new THREE.Object3D();let elapsed=0;
   function update(dt,position){
     elapsed+=dt;
@@ -105,6 +116,22 @@ export async function createTraffic(scene,url){
       for(const mesh of groups[car.variant])mesh.setMatrixAt(car.instance,dummy.matrix);
     }
     for(const meshes of groups)for(const mesh of meshes)mesh.instanceMatrix.needsUpdate=true;
+    for(let i=0;i<pedestrians.length;i++){
+      const person=pedestrians[i],route=person.route,total=route.length;
+      const phase=(person.offset+elapsed*person.speed*(person.panic>0?2.8:1))%(total*2);
+      const distance=easeTurnaroundDistance(phase<total?phase:total*2-phase,total);
+      let lo=0,hi=route.cumulative.length-1;
+      while(lo<hi-1){const mid=(lo+hi)>>1;if(route.cumulative[mid]<distance)lo=mid;else hi=mid;}
+      const a=route.points[lo],b=route.points[lo+1],length=route.cumulative[lo+1]-route.cumulative[lo],t=length>0?(distance-route.cumulative[lo])/length:0;
+      const angle=Math.atan2(b[0]-a[0],b[2]-a[2])+Math.PI,sidewalk=person.side*4.6;
+      const x=a[0]+(b[0]-a[0])*t+Math.cos(angle)*sidewalk,z=a[2]+(b[2]-a[2])*t-Math.sin(angle)*sidewalk,y=a[1]+(b[1]-a[1])*t;
+      person.position.set(x,y,z);person.panic=Math.max(0,person.panic-dt);
+      const far=!person.alive||(position&&Math.hypot(position.x-x,position.z-z)>650);
+      person.visible=!far;
+      dummy.position.set(x,far?-1000:y+1.03,z);dummy.rotation.set(0,angle,0);dummy.scale.setScalar(far?.001:1);dummy.updateMatrix();body.setMatrixAt(i,dummy.matrix);
+      dummy.position.y=far?-1000:y+1.84;dummy.updateMatrix();heads.setMatrixAt(i,dummy.matrix);
+    }
+    body.instanceMatrix.needsUpdate=true;heads.instanceMatrix.needsUpdate=true;
   }
   function destroy(car){
     if(!car?.alive)return null;
@@ -116,8 +143,32 @@ export async function createTraffic(scene,url){
   }
   function reset(){
     for(const car of cars){car.alive=true;car.health=1;}
+    for(const person of pedestrians){person.alive=true;person.panic=0;}
     elapsed=0;update(0,null);
   }
+  function blast(point,radius){
+    const nearby=[];
+    for(const car of cars)if(car.alive&&car.position.distanceTo(point)<radius)nearby.push(car);
+    for(const person of pedestrians){
+      if(!person.alive)continue;
+      const distance=person.position.distanceTo(point);
+      if(distance<radius*.55)person.alive=false;
+      else if(distance<radius*2.3)person.panic=Math.max(person.panic,8);
+    }
+    return nearby.slice(0,6);
+  }
+  function findPersonRayHit(origin,direction,maxDistance){
+    let nearest=null,best=maxDistance;
+    for(const person of pedestrians){
+      if(!person.alive||!person.visible)continue;
+      const dx=person.position.x-origin.x,dy=person.position.y+1.15-origin.y,dz=person.position.z-origin.z;
+      const along=dx*direction.x+dy*direction.y+dz*direction.z;
+      if(along<0||along>best)continue;
+      if(dx*dx+dy*dy+dz*dz-along*along<.55*.55){nearest=person;best=along;}
+    }
+    return nearest?{person:nearest,distance:best}:null;
+  }
+  function hitPerson(person){if(!person?.alive)return false;person.alive=false;person.visible=false;return true;}
   update(0,null);
-  return {update,reset,destroy,findRayHit:(origin,direction,maxDistance=1500)=>nearestVehicleHit(cars,origin,direction,maxDistance),findLockTarget:(origin,direction,maxDistance=1800,isAvailable)=>nearestVehicleLock(cars,origin,direction,maxDistance,.18,isAvailable),count:cars.length};
+  return {update,reset,destroy,blast,hitPerson,findPersonRayHit,findRayHit:(origin,direction,maxDistance=1500)=>nearestVehicleHit(cars,origin,direction,maxDistance),findLockTarget:(origin,direction,maxDistance=1800,isAvailable)=>nearestVehicleLock(cars,origin,direction,maxDistance,.18,isAvailable),count:cars.length,peopleCount:pedestrians.length,get activePeopleCount(){return pedestrians.filter(person=>person.alive).length;}};
 }

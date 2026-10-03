@@ -15,3 +15,10 @@ export function firstHeightIntersection(sampleHeight,origin,direction,distance,c
   }
   return null;
 }
+
+export function resolveSurfaceContact(position,height,clearance=8){
+  const minimum=height+clearance;
+  if(position.y>=minimum)return false;
+  position.y=minimum;
+  return true;
+}
