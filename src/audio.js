@@ -1,15 +1,203 @@
-export class FlightAudio{
-  constructor(){this.ctx=null;this.master=null;this.engine=null;this.engineGain=null;this.volume=.35;this.previousVolume=.35;}
-  init(){if(this.ctx)return;const AudioContext=window.AudioContext||window.webkitAudioContext;if(!AudioContext)return;this.ctx=new AudioContext();this.master=this.ctx.createGain();this.master.gain.value=this.volume;this.master.connect(this.ctx.destination);const o=this.ctx.createOscillator();o.type='sawtooth';o.frequency.value=57;const filter=this.ctx.createBiquadFilter();filter.type='lowpass';filter.frequency.value=180;this.engineGain=this.ctx.createGain();this.engineGain.gain.value=.055;o.connect(filter);filter.connect(this.engineGain);this.engineGain.connect(this.master);o.start();this.engine={osc:o,filter};const len=this.ctx.sampleRate*2;this.noiseBuffer=this.ctx.createBuffer(1,len,this.ctx.sampleRate);const data=this.noiseBuffer.getChannelData(0);for(let i=0;i<len;i++)data[i]=Math.random()*2-1;}
-  setVolume(value){this.volume=Math.max(0,Math.min(1,value));if(this.volume>0)this.previousVolume=this.volume;if(this.ctx)this.master.gain.setTargetAtTime(this.volume,this.ctx.currentTime,.03);}
-  toggleMute(){this.setVolume(this.volume?0:this.previousVolume);return this.volume;}
-  update(throttle,speed){if(!this.ctx||!this.engine)return;this.engine.osc.frequency.setTargetAtTime(43+throttle*67+speed*.04,this.ctx.currentTime,.08);this.engine.filter.frequency.setTargetAtTime(125+throttle*470,this.ctx.currentTime,.1);this.engineGain.gain.setTargetAtTime(.025+throttle*.08,this.ctx.currentTime,.1);}
-  tone(freq,duration=.12,type='sine',gain=.15,endFreq=freq){if(!this.ctx)return;const t=this.ctx.currentTime,o=this.ctx.createOscillator(),g=this.ctx.createGain();o.type=type;o.frequency.setValueAtTime(freq,t);o.frequency.exponentialRampToValueAtTime(Math.max(1,endFreq),t+duration);g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(gain,t+.012);g.gain.exponentialRampToValueAtTime(.0001,t+duration);o.connect(g);g.connect(this.master);o.start(t);o.stop(t+duration+.02);}
-  noise(duration=.3,gain=.16,filterFreq=900,endFreq=90){if(!this.ctx)return;const t=this.ctx.currentTime,src=this.ctx.createBufferSource(),filter=this.ctx.createBiquadFilter(),g=this.ctx.createGain();src.buffer=this.noiseBuffer;filter.type='lowpass';filter.frequency.setValueAtTime(filterFreq,t);filter.frequency.exponentialRampToValueAtTime(Math.max(30,endFreq),t+duration);g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(gain,t+.008);g.gain.exponentialRampToValueAtTime(.0001,t+duration);src.connect(filter);filter.connect(g);g.connect(this.master);src.start(t,Math.random()*Math.max(0,2-duration-.01),duration);}
-  click(){this.tone(720,.07,'triangle',.08,510);}
-  lock(){this.tone(920,.15,'sine',.12,1250);}
-  missile(){this.tone(95,.5,'sawtooth',.16,480);this.noise(.75,.13,2500,320);}
-  gun(){this.noise(.1,.2,2200,250);this.tone(120,.09,'triangle',.08,52);}
-  explosion(){this.noise(1.3,.32,920,70);this.tone(68,.85,'sawtooth',.2,28);this.noise(.35,.12,3600,500);}
-  warning(){this.tone(720,.13,'square',.12,720);}
+const CLIPS = {
+  cockpit: 'jet-cockpit.mp3',
+  afterburner: 'jet-afterburner.mp3',
+  cannon: 'cannon-burst.mp3',
+  missile: 'missile-launch.wav',
+  ignition: 'rocket-ignition.wav',
+  explosion: 'explosions.mp3',
+};
+
+const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+
+export class FlightAudio {
+  constructor() {
+    this.ctx = null;
+    this.master = null;
+    this.buffers = {};
+    this.volume = .35;
+    this.previousVolume = .35;
+    this.active = false;
+    this.gunFiring = false;
+    this.gunVoice = null;
+    this.throttle = .3;
+    this.speed = 70;
+    this.lastExplosion = -Infinity;
+  }
+
+  preload() {
+    if (this.fetchPromise) return this.fetchPromise;
+    this.fetchPromise = Promise.all(Object.entries(CLIPS).map(async ([name, file]) => {
+      const response = await fetch(`${import.meta.env.BASE_URL}audio/${file}`);
+      if (!response.ok) throw new Error(`${file}: ${response.status}`);
+      return [name, await response.arrayBuffer()];
+    })).catch(error => {
+      this.fetchPromise = null;
+      throw error;
+    });
+    return this.fetchPromise;
+  }
+
+  init() {
+    if (this.ctx) return;
+    const AudioContext = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContext) return;
+    this.ctx = new AudioContext();
+    this.master = this.ctx.createGain();
+    this.master.gain.value = this.volume;
+    const limiter = this.ctx.createDynamicsCompressor();
+    limiter.threshold.value = -12;
+    limiter.knee.value = 12;
+    limiter.ratio.value = 4;
+    limiter.attack.value = .004;
+    limiter.release.value = .18;
+    this.master.connect(limiter).connect(this.ctx.destination);
+    this.ambience = this.ctx.createGain();
+    this.ambience.gain.value = 0;
+    this.ambience.connect(this.master);
+    this.loadPromise = this.preload().then(async clips => {
+      await Promise.all(clips.map(async ([name, data]) => {
+        this.buffers[name] = await this.ctx.decodeAudioData(data.slice(0));
+      }));
+      this.startEngines();
+      if (this.gunFiring) this.startGun();
+    }).catch(error => console.warn('Flight audio could not load:', error));
+  }
+
+  startEngines() {
+    if (this.engine || !this.ctx) return;
+    const makeLayer = (buffer, filterType, frequency, gain) => {
+      const source = this.ctx.createBufferSource();
+      source.buffer = buffer;
+      source.loop = true;
+      const filter = this.ctx.createBiquadFilter();
+      filter.type = filterType;
+      filter.frequency.value = frequency;
+      const level = this.ctx.createGain();
+      level.gain.value = gain;
+      source.connect(filter).connect(level).connect(this.ambience);
+      source.start();
+      return {source, filter, level};
+    };
+    this.engine = makeLayer(this.buffers.cockpit, 'lowpass', 1900, .75);
+    this.boost = makeLayer(this.buffers.afterburner, 'highpass', 150, 0);
+    this.update(this.throttle, this.speed);
+    this.setActive(this.active);
+  }
+
+  setActive(active) {
+    this.active = active;
+    if (!active) this.setGunFiring(false);
+    if (!this.ctx || !this.ambience) return;
+    this.ambience.gain.setTargetAtTime(active ? 1 : 0, this.ctx.currentTime, active ? .14 : .06);
+  }
+
+  setVolume(value) {
+    this.volume = clamp(value, 0, 1);
+    if (this.volume > 0) this.previousVolume = this.volume;
+    if (this.ctx) this.master.gain.setTargetAtTime(this.volume, this.ctx.currentTime, .03);
+  }
+
+  toggleMute() {
+    this.setVolume(this.volume ? 0 : this.previousVolume);
+    return this.volume;
+  }
+
+  update(throttle, speed) {
+    this.throttle = throttle;
+    this.speed = speed;
+    if (!this.engine) return;
+    const now = this.ctx.currentTime;
+    const boost = clamp((throttle - .72) / .28, 0, 1);
+    this.engine.source.playbackRate.setTargetAtTime(.82 + throttle * .32, now, .16);
+    this.engine.filter.frequency.setTargetAtTime(1250 + throttle * 1900 + speed * 3, now, .14);
+    this.engine.level.gain.setTargetAtTime(.62 + throttle * .35, now, .14);
+    this.boost.source.playbackRate.setTargetAtTime(.8 + throttle * .38, now, .18);
+    this.boost.level.gain.setTargetAtTime(.08 + boost * .62, now, .15);
+  }
+
+  play(name, gain, options = {}) {
+    if (!this.ctx || !this.buffers[name]) return;
+    const now = this.ctx.currentTime;
+    const source = this.ctx.createBufferSource();
+    source.buffer = this.buffers[name];
+    source.playbackRate.value = options.rate || 1;
+    const level = this.ctx.createGain();
+    level.gain.setValueAtTime(.0001, now);
+    level.gain.exponentialRampToValueAtTime(gain, now + .008);
+    source.connect(level).connect(this.master);
+    const offset = options.offset || 0;
+    const bufferDuration = options.duration || source.buffer.duration - offset;
+    const end = now + bufferDuration / source.playbackRate.value;
+    level.gain.setValueAtTime(gain, Math.max(now + .008, end - .12));
+    level.gain.exponentialRampToValueAtTime(.0001, end);
+    if (options.duration) source.start(now, offset, options.duration);
+    else source.start(now, offset);
+    source.onended = () => source.disconnect();
+    return source;
+  }
+
+  startGun() {
+    if (!this.active || this.gunVoice || !this.buffers.cannon || !this.ctx) return;
+    const source = this.ctx.createBufferSource();
+    source.buffer = this.buffers.cannon;
+    source.loop = true;
+    const filter = this.ctx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.value = 6200;
+    const level = this.ctx.createGain();
+    const now = this.ctx.currentTime;
+    level.gain.setValueAtTime(.0001, now);
+    level.gain.exponentialRampToValueAtTime(.48, now + .025);
+    source.connect(filter).connect(level).connect(this.master);
+    source.start(now);
+    source.onended = () => source.disconnect();
+    this.gunVoice = {source, level};
+  }
+
+  setGunFiring(firing) {
+    if (firing === this.gunFiring) return;
+    this.gunFiring = firing;
+    if (firing) { this.startGun(); return; }
+    if (!this.gunVoice || !this.ctx) return;
+    const {source, level} = this.gunVoice;
+    const now = this.ctx.currentTime;
+    level.gain.cancelScheduledValues(now);
+    level.gain.setValueAtTime(Math.max(level.gain.value, .0001), now);
+    level.gain.exponentialRampToValueAtTime(.0001, now + .055);
+    source.stop(now + .065);
+    this.gunVoice = null;
+  }
+
+  tone(freq, duration = .12, type = 'sine', gain = .15, endFreq = freq) {
+    if (!this.ctx) return;
+    const now = this.ctx.currentTime;
+    const source = this.ctx.createOscillator();
+    const level = this.ctx.createGain();
+    source.type = type;
+    source.frequency.setValueAtTime(freq, now);
+    source.frequency.exponentialRampToValueAtTime(Math.max(1, endFreq), now + duration);
+    level.gain.setValueAtTime(.0001, now);
+    level.gain.exponentialRampToValueAtTime(gain, now + .012);
+    level.gain.exponentialRampToValueAtTime(.0001, now + duration);
+    source.connect(level).connect(this.master);
+    source.start(now);
+    source.stop(now + duration + .02);
+  }
+
+  click() { this.tone(620, .055, 'sine', .045, 470); }
+  lock() { this.tone(940, .11, 'sine', .08, 1190); }
+  warning() { this.tone(620, .19, 'sine', .08, 550); }
+  missile() {
+    const rate = .94 + Math.random() * .1;
+    this.play('ignition', 2.3, {rate});
+    this.play('missile', 2.9, {rate});
+  }
+  gun() { this.play('cannon', .22, {duration: .17, rate: .94 + Math.random() * .12}); }
+  explosion() {
+    if (!this.ctx || this.ctx.currentTime - this.lastExplosion < .06) return;
+    this.lastExplosion = this.ctx.currentTime;
+    const variants = [[0, 3], [4, 3], [8, 3.5], [12.15, 5.8]];
+    const [offset, duration] = variants[Math.floor(Math.random() * variants.length)];
+    this.play('explosion', .62, {offset, duration, rate: .9 + Math.random() * .17});
+  }
 }
