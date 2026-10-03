@@ -73,7 +73,9 @@ function lyonLegacyTiles(){
           if(lyonCache.size>96)lyonCache.delete(lyonCache.keys().next().value);
         }
         res.setHeader('Content-Type',path.endsWith('.json')?'application/json':'application/octet-stream');
-        res.setHeader('Cache-Control','no-store');
+        // The public 2023 tiles are immutable. Let the browser retain converted
+        // payloads across turns so revisiting a block does not re-fetch/convert.
+        res.setHeader('Cache-Control','public, max-age=86400');
         res.setHeader('Content-Length',tile.length);
         res.end(tile);
       }catch(error){server.config.logger.error(`Lyon tile conversion failed: ${error}`);res.statusCode=502;res.end('Tile conversion failed');}
