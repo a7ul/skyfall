@@ -14,8 +14,8 @@ test('a city blast affects local traffic and pedestrians until sortie reset',asy
   const scene=new THREE.Scene();
   const load=async()=>({json:async()=>({routes:[{name:'test street',speed:9,points:[[0,1.4,0],[0,1.4,50],[0,1.4,100]]}]})});
   const traffic=await createTraffic(scene,'test',load);
-  const origin=new THREE.Vector3(0,2.2,-10),direction=new THREE.Vector3(0,0,1);
-  expect(traffic.count).toBe(1);
+  const origin=new THREE.Vector3(-1.4,2.2,-10),direction=new THREE.Vector3(0,0,1);
+  expect(traffic.count).toBe(2);
   expect(traffic.peopleCount).toBe(1);
   expect(traffic.findRayHit(origin,direction,20)).not.toBeNull();
   traffic.blast(new THREE.Vector3(4.6,1.4,0),3);

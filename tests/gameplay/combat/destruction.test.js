@@ -4,31 +4,25 @@ import {fractureMesh} from '../../../src/gameplay/combat/destruction.js';
 import {createBuildingIndex} from '../../../src/world/lyon/buildings.js';
 import {blastRubbleHeight,shockRadius} from '../../../src/gameplay/combat/nuclearBlast.js';
 import {createCollapseRubble} from '../../../src/gameplay/combat/rubbleField.js';
+import {createGroundCrater} from '../../../src/gameplay/combat/groundCrater.js';
+import {isWaterImpact} from '../../../src/world/lyon/waterMask.js';
 
-test('a missile removes a local patch of a transformed tile and produces textured falling pieces',()=>{
-  const mesh=new THREE.Mesh(new THREE.PlaneGeometry(20,20,20,20),new THREE.MeshStandardMaterial());
-  mesh.position.set(250,82,-130);
-  mesh.rotation.y=.3;
-  mesh.updateWorldMatrix(true,false);
-  const before=mesh.geometry.getIndex().array.slice();
-  const fragments=fractureMesh(mesh,new THREE.Vector3(250,82,-130),3);
-  const after=mesh.geometry.getIndex().array;
-  const changed=before.filter((value,i)=>value!==after[i]).length;
-  expect(changed).toBeGreaterThan(0);
-  expect(changed).toBeLessThan(before.length/2);
-  expect(fragments.length).toBeGreaterThan(4);
-  expect(fragments.every(piece=>piece.geometry.getAttribute('uv'))).toBe(true);
-  expect(fragments.every(piece=>piece.position.distanceTo(new THREE.Vector3(250,82,-130))<5)).toBe(true);
+test('a ground strike leaves a filled crater instead of open tile geometry',()=>{
+  const crater=createGroundCrater(new THREE.Vector3(15,1.4,-20),12);
+  const surface=crater.children[0];
+  expect(surface.geometry.getIndex().count).toBeGreaterThan(100);
+  expect(surface.geometry.getAttribute('color')).toBeDefined();
+  expect(crater.children[1].isInstancedMesh).toBe(true);
+  expect(crater.position.y).toBeCloseTo(1.6);
+  crater.traverse(child=>{if(child.isMesh){child.geometry.dispose();child.material.dispose();}});
 });
 
-test('a later detail tile can receive the same hole without spawning another burst',()=>{
-  const point=new THREE.Vector3(0,0,0);
-  const makeMesh=()=>new THREE.Mesh(new THREE.PlaneGeometry(12,12,12,12),new THREE.MeshStandardMaterial());
-  const first=makeMesh(),later=makeMesh();
-  fractureMesh(first,point,2);
-  const fragments=fractureMesh(later,point,2,{makeFragments:false});
-  expect(fragments).toEqual([]);
-  expect(Array.from(later.geometry.getIndex().array)).toEqual(Array.from(first.geometry.getIndex().array));
+test('river strikes splash, while nearby streets and bridges stay solid',()=>{
+  expect(isWaterImpact(-595,260,1.4)).toBe(true);
+  expect(isWaterImpact(105,610,1.4)).toBe(true);
+  expect(isWaterImpact(0,0,1.4)).toBe(false);
+  expect(isWaterImpact(-595,260,10)).toBe(false);
+  expect(isWaterImpact(-595,260,1.4,()=>true)).toBe(false);
 });
 
 test('a base strike selects one building and removes its upper structure across tile detail changes',()=>{

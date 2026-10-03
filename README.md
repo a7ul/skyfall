@@ -20,7 +20,7 @@ Pick a jet and explore without a mission timer. Skim the river, weave between bl
 
 | In the air | Over the city | In combat |
 | --- | --- | --- |
-| Separate pitch, roll, and yaw; full rolls and loops; air brake and throttle control; animated control surfaces. | Lyon's textured 3D city streams around you, with finer detail near the aircraft, moving road traffic, and pedestrians. | Cannon, lock-on or unguided missiles, gravity bombs, and a stylized nuclear blast; impact cues, damage, smoke, fire, and debris. |
+| Separate pitch, roll, and yaw; full rolls and loops; air brake and throttle control; animated control surfaces. | Lyon's textured 3D city streams around you, with finer detail near the aircraft, moving cars, trucks, buses, and pedestrians. | Cannon, lock-on or unguided missiles, gravity bombs, and a stylized nuclear blast. Water splashes, ground craters, and collapsed buildings leave different impact scenes. |
 
 The seven aircraft have different flight tuning. The F-16 is the nimble light fighter, the F-15E is a heavier strike platform, and the slower A-10 is built for low-altitude ground attack. Chase, cockpit, and cinematic views let you change how close you feel to the jet and the streets.
 

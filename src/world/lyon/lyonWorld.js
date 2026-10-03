@@ -48,7 +48,9 @@ export async function createLyonWorld(scene,onProgress=()=>{},renderer,camera){
   const lookAhead=new SphereRegion({sphere:new THREE.Sphere(new THREE.Vector3(),300),errorTarget:12});
   const preloader=new LoadRegionPlugin();
   tiles.registerPlugin(preloader);
-  tiles.registerPlugin(new ReorientationPlugin({lat:45.7578*Math.PI/180,lon:4.8320*Math.PI/180,height:170}));
+  // The photomesh uses ellipsoid heights; its local street level is roughly
+  // 52 m above the OSM roads. Recenter at the matching ellipsoid height.
+  tiles.registerPlugin(new ReorientationPlugin({lat:45.7578*Math.PI/180,lon:4.8320*Math.PI/180,height:222}));
   tiles.setCamera(camera);
   const setResolution=()=>tiles.setResolution(camera,Math.floor(innerWidth*renderer.getPixelRatio()),Math.floor(innerHeight*renderer.getPixelRatio()));
   setResolution();
@@ -57,7 +59,8 @@ export async function createLyonWorld(scene,onProgress=()=>{},renderer,camera){
   const blastZones=[];
   const loadedScenes=new Set();
   const pendingDamageScenes=new Set();
-  const appliedDamage=new WeakMap();
+  let appliedDamage=new WeakMap();
+  let originalGeometry=new WeakMap();
   let damageId=0;
   let resolveReady;
   const ready=new Promise(resolve=>{resolveReady=resolve;});
@@ -104,6 +107,11 @@ export async function createLyonWorld(scene,onProgress=()=>{},renderer,camera){
   const cityRay=new THREE.Raycaster();cityRay.firstHitOnly=true;
   const down=new THREE.Vector3(0,-1,0);
   const sphere=new THREE.Sphere();
+  function rememberGeometry(mesh){
+    if(originalGeometry.has(mesh))return;
+    const index=mesh.geometry.getIndex(),position=mesh.geometry.getAttribute('position');
+    originalGeometry.set(mesh,{index:index?.array.slice(),position:position?.array.slice()});
+  }
   function applyStoredDamage(tileScene){
     const originalParent=tileScene.parent;
     if(!originalParent)tileScene.parent=tiles.group;
@@ -116,6 +124,7 @@ export async function createLyonWorld(scene,onProgress=()=>{},renderer,camera){
         let applied=appliedDamage.get(mesh);
         for(const site of damageSites){
           if(applied?.has(site.id)||sphere.center.distanceTo(site.point)>sphere.radius+site.radius)continue;
+          rememberGeometry(mesh);
           fractureMesh(mesh,site.point,site.radius,{makeFragments:false,building:site.building,blastZone:site.blastZone});
           if(!applied){applied=new Set();appliedDamage.set(mesh,applied);}
           applied.add(site.id);
@@ -128,25 +137,10 @@ export async function createLyonWorld(scene,onProgress=()=>{},renderer,camera){
   function replayDamage(){
     for(const tileScene of loadedScenes)pendingDamageScenes.add(tileScene);
   }
-  function fractureCity(hit,radius=12,{replay=true}={}){
-    if(!hit?.object?.isMesh)return [];
-    const site={id:++damageId,point:hit.point.clone(),radius};
-    damageSites.push(site);
-    if(damageSites.length>120){
-      const oldestLocal=damageSites.findIndex(entry=>!entry.building&&!entry.blastZone);
-      if(oldestLocal>=0)damageSites.splice(oldestLocal,1);
-    }
-    if(replay)replayDamage();
-    const fragments=fractureMesh(hit.object,site.point,radius,{faceIndex:hit.faceIndex});
-    let applied=appliedDamage.get(hit.object);
-    if(!applied){applied=new Set();appliedDamage.set(hit.object,applied);}
-    applied.add(site.id);
-    return fragments;
-  }
   function collapseBuildingAt(hit,{replay=true,force=false}={}){
     if(!hit?.object?.isMesh)return null;
-    const building=buildingIndex.find(hit.point.x,hit.point.z,force?0:hit.point.y,3);
-    if(!building||(!force&&hit.point.y>Math.max(7,building.height*.3)))return null;
+    const building=buildingIndex.find(hit.point.x,hit.point.z,force?0:hit.point.y,force?3:7);
+    if(!building)return null;
     const centerX=(building.minX+building.maxX)/2,centerZ=(building.minZ+building.maxZ)/2;
     const visibleTop=visualHeight(centerX,centerZ);
     building.top=Math.max(building.height,visibleTop&&visibleTop>2?visibleTop:0);
@@ -155,6 +149,7 @@ export async function createLyonWorld(scene,onProgress=()=>{},renderer,camera){
     const radius=Math.hypot(building.maxX-building.minX,building.maxZ-building.minZ)*.5+building.top*.5+6;
     // If the OSM footprint misses the photomesh facade, keep the local-hit
     // behavior instead of hiding collision for a building still on screen.
+    rememberGeometry(hit.object);
     const fragments=fractureMesh(hit.object,point,radius,{building});
     if(!fragments.length)return null;
     building.collapsed=true;
@@ -196,6 +191,18 @@ export async function createLyonWorld(scene,onProgress=()=>{},renderer,camera){
     damageSites.push(site);
     replayDamage();
   }
+  function resetDamage(){
+    for(const tileScene of loadedScenes)tileScene.traverse(mesh=>{
+      const saved=originalGeometry.get(mesh);
+      if(!saved)return;
+      const index=mesh.geometry.getIndex(),position=mesh.geometry.getAttribute('position');
+      if(index&&saved.index){index.array.set(saved.index);index.needsUpdate=true;}
+      if(position&&saved.position){position.array.set(saved.position);position.needsUpdate=true;}
+    });
+    damageSites.length=0;blastZones.length=0;pendingDamageScenes.clear();
+    for(const building of buildingIndex.buildings)building.collapsed=false;
+    appliedDamage=new WeakMap();originalGeometry=new WeakMap();
+  }
   function raycastCity(origin,direction,maxDistance=1200){
     cityRay.set(origin,direction);
     cityRay.far=maxDistance;
@@ -205,6 +212,7 @@ export async function createLyonWorld(scene,onProgress=()=>{},renderer,camera){
     const hit=raycastCity(new THREE.Vector3(x,1200,z),down,1500);
     return hit?.point.y??null;
   }
+  traffic.setSurfaceSampler(visualHeight);
   const inverse=new THREE.Matrix4(),ahead=new THREE.Vector3();
   let frameAverage=16.7;
   const frameSamples=[];
@@ -236,7 +244,7 @@ export async function createLyonWorld(scene,onProgress=()=>{},renderer,camera){
     }
   }
   return {
-    tiles,traffic,collisionHeight,visualHeight,raycastCity,fractureCity,collapseBuildingAt,blastBuildingCandidates,blastRubbleSites,flattenArea,replayDamage,ready,
+    tiles,traffic,collisionHeight,visualHeight,raycastCity,collapseBuildingAt,blastBuildingCandidates,blastRubbleSites,flattenArea,replayDamage,resetDamage,ready,
     city:{get loadedCount(){return loaded;}},
     update,updateTiles,
     get quality(){const sorted=[...frameSamples].sort((a,b)=>a-b);return {errorTarget:tiles.errorTarget,frameMs:frameAverage,p95FrameMs:sorted[Math.floor(sorted.length*.95)]??0,cacheMB:Math.round(tiles.lruCache.cachedBytes/1048576),cacheLimitMB:Math.round(tiles.lruCache.maxBytesSize/1048576),deviceMemoryGB:navigator.deviceMemory??null,...tiles.stats};},

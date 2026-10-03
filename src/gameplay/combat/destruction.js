@@ -2,12 +2,12 @@ import * as THREE from 'three';
 import {distanceToFootprint} from '../../world/lyon/buildings.js';
 import {blastRubbleHeight} from './nuclearBlast.js';
 
-const vertex = new THREE.Vector3();
 const center = new THREE.Vector3();
 
-// Remove only triangles near the strike from the streamed tile. Keep its
-// textures and UVs on a small set of detached pieces.
-export function fractureMesh(mesh, point, radius, {makeFragments=true, faceIndex=-1,building=null,blastZone=null}={}) {
+// Remove only the triangles of a collapsed building or broad blast zone.
+// Ordinary surface hits never cut an open patch in the streamed tile.
+export function fractureMesh(mesh, point, radius, {makeFragments=true,building=null,blastZone=null}={}) {
+  if(!building&&!blastZone)return [];
   const geometry = mesh.geometry;
   const position = geometry?.getAttribute('position');
   if (!position || !mesh.isMesh) return [];
@@ -15,13 +15,7 @@ export function fractureMesh(mesh, point, radius, {makeFragments=true, faceIndex
   const triangleCount = (index?.count || position.count) / 3;
   if (triangleCount > 300000) return [];
   const uv = geometry.getAttribute('uv');
-  const impact = point instanceof THREE.Vector3 ? point : new THREE.Vector3(...point);
   mesh.updateWorldMatrix(true, false);
-  const localImpact = impact.clone().applyMatrix4(mesh.matrixWorld.clone().invert());
-  const scale = new THREE.Vector3();
-  mesh.getWorldScale(scale);
-  const minimumScale = Math.max(.0001, Math.min(Math.abs(scale.x), Math.abs(scale.y), Math.abs(scale.z)));
-  const localRadiusSq = (radius / minimumScale) ** 2;
   const cellSize=building?3.2:Math.max(1.3,radius/5);
   const shardLimit=building?180:48;
   const shards = makeFragments ? new Map() : null;
@@ -44,7 +38,7 @@ export function fractureMesh(mesh, point, radius, {makeFragments=true, faceIndex
     }else if(building){
       center.applyMatrix4(mesh.matrixWorld);
       if(center.y<1.5||center.y>building.top+3||distanceToFootprint(center.x,center.z,building)>2.2)continue;
-    }else if (center.distanceToSquared(localImpact) > localRadiusSq && triangle !== faceIndex) continue;
+    }
     if (a.distanceToSquared(b) < .0001 || b.distanceToSquared(c) < .0001) continue;
 
     if (shards && removed % 2 === 0 && captured < 2400) {
@@ -69,9 +63,8 @@ export function fractureMesh(mesh, point, radius, {makeFragments=true, faceIndex
       index.setX(triangle * 3 + 1, ids[0]);
       index.setX(triangle * 3 + 2, ids[0]);
     } else {
-      vertex.fromBufferAttribute(position, ids[0]);
-      position.setXYZ(ids[1], vertex.x, vertex.y, vertex.z);
-      position.setXYZ(ids[2], vertex.x, vertex.y, vertex.z);
+      position.setXYZ(ids[1], a.x, a.y, a.z);
+      position.setXYZ(ids[2], a.x, a.y, a.z);
     }
     removed++;
   }
