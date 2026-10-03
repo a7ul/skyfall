@@ -73,7 +73,7 @@ Open the URL printed by Vite, choose an aircraft, then select **Launch Mission**
 | Space / left click | Cannon |
 | F / right click | Missile, with or without a lock |
 | B / N | Gravity bomb / nuclear bomb |
-| G / C / M | Air brake / camera / mute |
+| G / C / M | Hold air brake / camera / mute |
 | P / Esc / HUD button | Pause and show all controls |
 
 Bank with A or D, then hold S to turn. Hold roll or pitch to complete a full roll or loop. Gamepad controls are supported too.
@@ -102,7 +102,7 @@ Local development uses Vite to proxy public Lyon tiles and convert their legacy 
 
 The repository is private, and its Pages workflow stays skipped on GitHub Free. When the repo becomes eligible, select **Settings → Pages → GitHub Actions**, then run the deployment workflow or push to `main`. The expected URL is `https://a7ul.github.io/skyfall/`.
 
-A local static Pages build is available with `VITE_BASE_PATH=/skyfall/ bun run build:pages`. It creates an approximately 834 MiB preconverted Lyon tile pack in ignored `dist/`. The pack keeps broad lower-detail city coverage and finer detail around the starting area while staying under GitHub Pages' 1 GiB site limit. Replacement tile groups are kept complete so a detailed patch cannot leave empty space where its parent mesh disappears.
+A local static Pages build is available with `VITE_BASE_PATH=/skyfall/ bun run build:pages`. It creates an approximately 942 MiB preconverted Lyon site in ignored `dist/`. The pack keeps broad lower-detail city coverage and includes another photomesh detail level along the starting flight corridor. Replacement tile groups are kept complete so a detailed patch cannot leave empty space where its parent mesh disappears.
 
 </details>
 

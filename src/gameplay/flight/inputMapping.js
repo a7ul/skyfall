@@ -5,6 +5,7 @@ export function keyboardAxes(keys){
     pitchInput:axis(['KeyS','ArrowDown'],['KeyW','ArrowUp']),
     rollInput:axis(['KeyA'],['KeyD']),
     yawInput:axis(['KeyQ','ArrowLeft'],['KeyE','ArrowRight']),
-    throttleInput:axis(['ShiftLeft','ShiftRight'],['ControlLeft','ControlRight'])
+    throttleInput:axis(['ShiftLeft','ShiftRight'],['ControlLeft','ControlRight']),
+    airbrake:keys.has('KeyG')
   };
 }

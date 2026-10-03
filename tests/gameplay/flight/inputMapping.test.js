@@ -24,3 +24,10 @@ test('arrow keys provide pitch and yaw without doubling an axis',()=>{
   expect(keyboardAxes(keys('KeyQ','ArrowLeft')).yawInput).toBe(1);
   expect(keyboardAxes(keys('KeyE','ArrowLeft')).yawInput).toBe(0);
 });
+
+test('air brake applies only while G is held and Shift still raises throttle',()=>{
+  expect(keyboardAxes(keys('KeyG')).airbrake).toBe(true);
+  expect(keyboardAxes(keys()).airbrake).toBe(false);
+  expect(keyboardAxes(keys('KeyG','ShiftLeft'))).toMatchObject({airbrake:true,throttleInput:1});
+  expect(keyboardAxes(keys('ShiftLeft'))).toMatchObject({airbrake:false,throttleInput:1});
+});

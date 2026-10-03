@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import {FLIGHT_PROFILES,FLIGHT_SPEED_SCALE,flightProfile} from '../../../src/gameplay/aircraft/flightProfiles.js';
 import {createFlightMotion,stepFlightAttitude,stepFlightPath} from '../../../src/gameplay/flight/flightMath.js';
 import {targetAirspeed,advanceAirspeed,stallSeverity,advanceStallTimer,STALL_GRACE_SECONDS} from '../../../src/gameplay/flight/flightPerformance.js';
+import {keyboardAxes} from '../../../src/gameplay/flight/inputMapping.js';
 
 const controls=(pitchInput=0,rollInput=0,yawInput=0)=>({pitchInput,rollInput,yawInput});
 const step=(q,m,c,profile,seconds,speed=80,highAlpha=false)=>{
@@ -78,6 +79,28 @@ test('full power recovers every stalled aircraft by airspeed even with the brake
     let speed=profile.stallSpeed*.2,seconds=3;
     for(let frame=0;frame<8*60;frame++){
       speed=advanceAirspeed(speed,1,profile,true,0,controls(),1/60);
+      seconds=advanceStallTimer(seconds,speed,profile,1/60);
+    }
+    expect(speed).toBeGreaterThan(profile.stallSpeed);
+    expect(seconds).toBe(0);
+  }
+});
+
+test('releasing G recovers from braking at normal throttle without Shift',()=>{
+  for(const id of Object.keys(FLIGHT_PROFILES)){
+    const profile=flightProfile(id),held=new Set(['KeyG']);
+    let speed=targetAirspeed(.5,profile),seconds=0;
+    for(let frame=0;frame<4*60;frame++){
+      const input=keyboardAxes(held);
+      speed=advanceAirspeed(speed,.5,profile,input.airbrake,0,input,1/60);
+      seconds=advanceStallTimer(seconds,speed,profile,1/60);
+    }
+    expect(speed).toBeLessThan(profile.stallSpeed);
+    expect(seconds).toBeGreaterThan(0);
+    held.delete('KeyG');
+    for(let frame=0;frame<3*60;frame++){
+      const input=keyboardAxes(held);
+      speed=advanceAirspeed(speed,.5,profile,input.airbrake,0,input,1/60);
       seconds=advanceStallTimer(seconds,speed,profile,1/60);
     }
     expect(speed).toBeGreaterThan(profile.stallSpeed);

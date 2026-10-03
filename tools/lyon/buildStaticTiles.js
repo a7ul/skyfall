@@ -6,10 +6,11 @@ import {pruneReplaceTiles} from './pruneReplaceTiles.js';
 const remote='https://data.grandlyon.com/files/grandlyon/2023/mesh/';
 const destination=path.resolve(process.argv[2]||'dist','lyon-photomesh');
 const origin={lat:45.7578,lon:4.8320};
-const radiusByDepth={5:2500,6:2500,7:2500,8:2500,9:800};
-const maxBytes=900*1024*1024;
+const radiusByDepth={5:2500,6:2500,7:2500,8:2200,9:800};
+const maxBytes=970*1024*1024;
 const tilePaths=new Set();
 const externalPaths=new Set();
+const corridorDetailPaths=new Set();
 
 async function fetchBuffer(file){
   const response=await fetch(new URL(file,remote),{signal:AbortSignal.timeout(120000)});
@@ -25,12 +26,24 @@ function distanceToRegion(region){
   return Math.hypot(Math.max(x0,0,-x1),Math.max(z0,0,-z1));
 }
 
+function nearFlightCorridor(region){
+  if(!region)return false;
+  const lon=(region[0]+region[2])*90/Math.PI;
+  const lat=(region[1]+region[3])*90/Math.PI;
+  const x=(lon-origin.lon)*111320*Math.cos(origin.lat*Math.PI/180);
+  const z=(lat-origin.lat)*111320;
+  return Math.abs(x)<150&&z>-800&&z<1000;
+}
+
 function collectTilePaths(node,base){
   if(node.content?.uri){
     const file=path.posix.normalize(path.posix.join(base,node.content.uri));
     if(file.startsWith('../')||file.startsWith('/'))throw new Error(`Unsafe tile path: ${file}`);
     if(file.endsWith('.b3dm'))tilePaths.add(file);
-    else if(file.endsWith('.json'))externalPaths.add(file);
+    else if(file.endsWith('.json')){
+      externalPaths.add(file);
+      if(nearFlightCorridor(node.boundingVolume?.region))corridorDetailPaths.add(file);
+    }
     else throw new Error(`Unknown tile content: ${file}`);
   }
   for(const child of node.children||[])collectTilePaths(child,base);
@@ -52,10 +65,16 @@ collectTilePaths(pyramid.root,'pyramid');
 for(const file of [...externalPaths]){
   const tileset=JSON.parse((await fetchBuffer(file)).toString());
   const rootTile={...tileset.root};
-  delete rootTile.children;
-  rootTile.geometricError=0;
+  const children=tileset.root.children||[];
+  if(corridorDetailPaths.has(file)&&children.length&&children.every(child=>child.content?.uri?.endsWith('.b3dm'))){
+    rootTile.children=children.map(child=>{
+      const leaf={...child,geometricError:0};
+      delete leaf.children;
+      return leaf;
+    });
+  }else{delete rootTile.children;rootTile.geometricError=0;}
   tileset.root=rootTile;
-  if(rootTile.content?.uri)tilePaths.add(path.posix.normalize(path.posix.join(path.posix.dirname(file),rootTile.content.uri)));
+  collectTilePaths(rootTile,path.posix.dirname(file));
   await save(file,JSON.stringify(tileset));
 }
 await save('tileset.json',JSON.stringify(root));
@@ -84,7 +103,7 @@ async function worker(){
     if(lastError)throw lastError;
   }
 }
-console.log(`Building static Lyon pack: ${paths.length} models, ${externalPaths.size} nested tilesets`);
+console.log(`Building static Lyon pack: ${paths.length} models, ${externalPaths.size} nested tilesets, ${corridorDetailPaths.size} with corridor detail`);
 await Promise.all(Array.from({length:4},()=>worker()));
 
 const visited=new Set();
@@ -120,5 +139,5 @@ async function directorySize(directory){
   return bytes;
 }
 const siteBytes=await directorySize(path.dirname(destination));
-if(siteBytes>1024**3)throw new Error(`Pages site exceeds 1 GiB: ${siteBytes} bytes`);
+if(siteBytes>950*1024**2)throw new Error(`Pages site exceeds 950 MiB target: ${siteBytes} bytes`);
 console.log(`Static Lyon pack complete: ${models} linked models in ${visited.size} tilesets; site ${Math.round(siteBytes/1048576)} MiB`);
