@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#08131c" />
+  <title>SKYFALL PROTOCOL — WebGPU air combat</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/src/style.css" />
+</head>
+<body>
+  <div id="game"></div>
+  <div class="grain"></div>
+
+  <main id="menu" class="menu">
+    <div class="menu-shade"></div>
+    <div class="topline"><span class="mark">S<span>///</span>P</span><span>TACTICAL FLIGHT SIMULATION <b>·</b> WEBGPU EDITION</span><span class="version">BUILD 0.1 / 2026</span></div>
+    <div class="menu-content">
+      <div class="eyebrow"><i></i> OPERATIONAL BRIEFING <span>01 / 01</span></div>
+      <h1>SKYFALL<br/><em>PROTOCOL</em></h1>
+      <p class="intro">Helsinki is going dark. A rogue air defense network is jamming the harbor evacuation corridor. You are the last aircraft in range.</p>
+      <div class="mission-card">
+        <div class="card-top"><span>CAMPAIGN / MISSION 01</span><span>06:42 LOCAL · HELSINKI</span></div>
+        <strong>BREAK THE SILENCE</strong>
+        <p>Destroy two relay sites, clear the hostile interceptors, then fly through the extraction corridor.</p>
+        <div class="card-tags"><span>◈ AIR-TO-GROUND</span><span>◇ AIR-TO-AIR</span><span>◎ EXTRACTION</span></div>
+      </div>
+      <div class="jet-select"><div class="select-title">SELECT AIRCRAFT <span id="jet-count">01 / 04</span></div><div id="jet-options" class="jet-options"></div><div id="jet-detail" class="jet-detail"></div></div>
+      <div class="menu-actions"><button id="start-mission" class="primary"><span>LAUNCH MISSION</span><b>↗</b></button><button id="start-free" class="secondary">FREE FLIGHT <span>↗</span></button></div>
+      <div class="sound-setting"><label for="volume">AUDIO <span id="volume-value">35%</span></label><input id="volume" type="range" min="0" max="100" value="35" aria-label="Audio volume" /><span>M TO MUTE / UNMUTE IN FLIGHT</span></div>
+      <p class="requirements" id="gpu-status">CHECKING WEBGPU SUPPORT…</p>
+    </div>
+    <div class="menu-bottom"><span>SCROLL TO REVIEW CONTROLS</span><span>HELSINKI REALITY MESH · <a href="https://www.hel.fi/en/decision-making/information-on-helsinki/maps-and-geospatial-data/helsinki-3d" target="_blank" rel="noopener">© CITY OF HELSINKI · CC BY 4.0</a> · <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">© OPENSTREETMAP CONTRIBUTORS</a></span></div>
+    <div class="controls-preview">
+      <h2>FLIGHT SYSTEMS <span>01 / CONTROLS</span></h2>
+      <div><span><b>W / S · ↑ / ↓</b> Nose down / up</span><span><b>A / D</b> Roll right / left</span><span><b>Q / E · ← / →</b> Yaw left / right</span><span><b>SHIFT / CTRL</b> Throttle up / down</span><span><b>MOUSE</b> Flight stick (auto centers)</span><span><b>SPACE / CLICK</b> Cannon</span><span><b>F / RIGHT CLICK</b> Missile</span><span><b>C</b> Camera</span><span><b>G</b> Air brake</span><span><b>P / ESC</b> Pause / controls</span></div>
+    </div>
+  </main>
+
+  <div id="hud" class="hud hidden">
+    <div class="hud-top"><div class="hud-brand"><span class="mark">S<span>///</span>P</span><span id="mission-name">BREAK THE SILENCE</span></div><div class="hud-top-right"><span id="mode-label">MISSION 01</span><span id="clock">00:00</span><button id="pause-button" aria-label="Pause">Ⅱ</button></div></div>
+    <div class="hud-left"><div class="hud-label">MISSION STATUS</div><div id="objective" class="objective"></div><div class="progress"><div id="objective-progress"></div></div><div id="radio" class="radio"></div></div>
+    <div id="target-label" class="target-label hidden"></div>
+    <div class="reticle"><div class="reticle-line h"></div><div class="reticle-line v"></div><div class="reticle-circle"></div><div class="reticle-center">+</div><div id="lock-ring" class="lock-ring"></div></div>
+    <div id="warning" class="warning hidden">MISSILE WARNING</div>
+    <div id="cockpit" class="cockpit hidden"><div class="canopy-left"></div><div class="canopy-right"></div><div class="cockpit-panel"><div class="panel-top"><span>VIPER / AVIONICS</span><span>SYS NOMINAL</span></div><div class="panel-screens"><div class="mfd"><span>TACTICAL DISPLAY</span><div class="mfd-grid"><i></i></div><small>RANGE 20 NM</small></div><div class="mfd center"><span>FLIGHT DIRECTOR</span><div class="attitude"><i></i></div><small>ATT / NAV / AUTO</small></div><div class="mfd"><span>ENGINE STATUS</span><div class="engine-readout">N1 <b>92</b><br>EGT <b>640</b></div><small>FUEL 68%</small></div></div></div></div>
+    <div class="hud-bottom"><div class="telemetry"><div class="datum"><small>SPD <span>KTS</span></small><strong id="speed">000</strong></div><div class="datum"><small>ALT <span>FT</span></small><strong id="altitude">0000</strong></div><div class="datum"><small>HDG <span>DEG</span></small><strong id="heading">000</strong></div><div class="datum"><small>THR <span>%</span></small><strong id="throttle">00</strong></div></div><div class="center-data"><span id="flight-state">FLIGHT STABLE</span><span id="flight-attitude">PITCH +00° · ROLL +00° · YAW 000°</span><span id="camera-state">CHASE CAM</span></div><div class="weapons"><div><small>HULL</small><div class="bar"><i id="health-bar"></i></div><span id="health">100%</span></div><div><small>MSL</small><strong id="missiles">06</strong><span>FOX TWO</span></div><div><small>GUN</small><strong id="gun">∞</strong><span>30 MM</span></div></div></div>
+    <div class="radar"><div class="radar-ring"></div><div class="radar-ring inner"></div><div class="radar-sweep"></div><div class="radar-center"></div><div id="radar-contacts"></div><span>N</span></div>
+    <button id="controls-button" type="button" aria-label="Pause and show all controls"><b>P</b> PAUSE / CONTROLS</button>
+    <div class="hud-help">W/S OR ↑/↓ PITCH · A/D ROLL · Q/E OR ←/→ YAW · SHIFT/CTRL THROTTLE · SPACE GUN · F MISSILE · G BRAKE · C VIEW</div>
+  </div>
+
+  <div id="overlay" class="overlay hidden"><div class="overlay-card"><div class="eyebrow"><i></i><span id="overlay-kicker">FLIGHT PAUSED</span></div><h2 id="overlay-title">SYSTEMS HOLD</h2><p id="overlay-text">Your aircraft is holding position.</p><div id="overlay-stats" class="overlay-stats"></div><div id="pause-controls" class="pause-controls hidden"><h3>FLIGHT CONTROLS</h3><div class="control-grid"><span><b>W / ↑</b> Pitch down</span><span><b>S / ↓</b> Pitch up</span><span><b>A</b> Roll right</span><span><b>D</b> Roll left</span><span><b>Q / ←</b> Yaw left</span><span><b>E / →</b> Yaw right</span><span><b>SHIFT / CTRL</b> Throttle up / down</span><span><b>MOUSE</b> Pitch / roll</span><span><b>SPACE / LEFT CLICK</b> Cannon</span><span><b>F / RIGHT CLICK</b> Missile</span><span><b>G</b> Air brake</span><span><b>C</b> Camera view</span><span><b>M</b> Mute / unmute</span><span><b>P / ESC</b> Resume</span></div><p>Gamepad: left stick pitch / roll · shoulders yaw · triggers throttle · A cannon · B missile</p></div><div class="overlay-actions"><button id="resume-button" class="primary">RESUME FLIGHT <b>↗</b></button><button id="restart-button" class="secondary">RESTART <span>↗</span></button><button id="hangar-button" class="secondary">HANGAR <span>↗</span></button></div></div></div>
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
