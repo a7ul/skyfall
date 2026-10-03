@@ -1,11 +1,12 @@
 import {mkdir,readFile,readdir,stat,writeFile} from 'node:fs/promises';
 import path from 'node:path';
 import {convertLyonTile} from '../vite/lyonLegacyTiles.js';
+import {pruneReplaceTiles} from './pruneReplaceTiles.js';
 
 const remote='https://data.grandlyon.com/files/grandlyon/2023/mesh/';
 const destination=path.resolve(process.argv[2]||'dist','lyon-photomesh');
 const origin={lat:45.7578,lon:4.8320};
-const radiusByDepth={5:2500,6:2500,7:2500,8:2000,9:450};
+const radiusByDepth={5:2500,6:2500,7:2500,8:2500,9:800};
 const maxBytes=900*1024*1024;
 const tilePaths=new Set();
 const externalPaths=new Set();
@@ -24,23 +25,15 @@ function distanceToRegion(region){
   return Math.hypot(Math.max(x0,0,-x1),Math.max(z0,0,-z1));
 }
 
-function prune(node,depth,base){
-  const region=node.boundingVolume?.region;
-  if(depth>4&&(!region||distanceToRegion(region)>radiusByDepth[depth]))return null;
-  const copy={...node};
-  if(copy.content?.uri){
-    const file=path.posix.normalize(path.posix.join(base,copy.content.uri));
+function collectTilePaths(node,base){
+  if(node.content?.uri){
+    const file=path.posix.normalize(path.posix.join(base,node.content.uri));
     if(file.startsWith('../')||file.startsWith('/'))throw new Error(`Unsafe tile path: ${file}`);
     if(file.endsWith('.b3dm'))tilePaths.add(file);
     else if(file.endsWith('.json'))externalPaths.add(file);
     else throw new Error(`Unknown tile content: ${file}`);
   }
-  if(node.children){
-    const children=node.children.map(child=>prune(child,depth+1,base)).filter(Boolean);
-    if(children.length)copy.children=children;
-    else{delete copy.children;copy.geometricError=0;}
-  }
-  return copy;
+  for(const child of node.children||[])collectTilePaths(child,base);
 }
 
 async function save(file,data){
@@ -51,7 +44,11 @@ async function save(file,data){
 
 const root=JSON.parse((await fetchBuffer('tileset.json')).toString());
 const pyramid=JSON.parse((await fetchBuffer('pyramid/tileset.json')).toString());
-pyramid.root=prune(pyramid.root,0,'pyramid');
+pyramid.root=pruneReplaceTiles(pyramid.root,0,(node,depth)=>{
+  const region=node.boundingVolume?.region;
+  return !!region&&distanceToRegion(region)<=radiusByDepth[depth];
+});
+collectTilePaths(pyramid.root,'pyramid');
 for(const file of [...externalPaths]){
   const tileset=JSON.parse((await fetchBuffer(file)).toString());
   const rootTile={...tileset.root};
