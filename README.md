@@ -6,13 +6,11 @@
 
 ## Screenshots
 
-These captures are from an **earlier Hong Kong prototype**. The current game uses Lyon photomesh; updated Lyon captures are still needed. Click a screenshot to open its copy in the [static `assets` release](https://github.com/a7ul/skyfall/releases/tag/assets). While the repo is private, the README renders its small local copies because GitHub cannot proxy authenticated release images.
+The current Lyon build in free flight. Click a screenshot to open its copy in the [static `assets` release](https://github.com/a7ul/skyfall/releases/tag/assets). While the repo is private, the README renders local thumbnails because GitHub cannot proxy authenticated release images.
 
-| Hangar and mission briefing | Chase camera and target tracking |
+| High-detail city pass | Low flight and road-vehicle targeting |
 | --- | --- |
-| [![Earlier prototype hangar and mission briefing](docs/screenshots/01-hangar.png)](https://github.com/a7ul/skyfall/releases/download/assets/01-hangar.png) | [![Earlier prototype chase camera and target tracking](docs/screenshots/02-chase-lock.png)](https://github.com/a7ul/skyfall/releases/download/assets/02-chase-lock.png) |
-| Cockpit camera | F-35 in free flight |
-| [![Earlier prototype cockpit camera](docs/screenshots/03-cockpit.png)](https://github.com/a7ul/skyfall/releases/download/assets/03-cockpit.png) | [![Earlier prototype F-35 in free flight](docs/screenshots/04-free-flight-f35.png)](https://github.com/a7ul/skyfall/releases/download/assets/04-free-flight-f35.png) |
+| [![Fighter jet above detailed Lyon rooftops](docs/screenshots/lyon-high-detail.png)](https://github.com/a7ul/skyfall/releases/download/assets/lyon-high-detail.png) | [![Fighter jet targeting a road vehicle in Lyon](docs/screenshots/lyon-free-flight.png)](https://github.com/a7ul/skyfall/releases/download/assets/lyon-free-flight.png) |
 
 ## What is playable
 
