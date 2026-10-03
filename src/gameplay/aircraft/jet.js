@@ -202,7 +202,7 @@ export function updateAfterburners(jet,throttle,time,afterburner=false){
   // Dry thrust has a faint nozzle glow. The bright plume is a held boost.
   const boost=afterburner?1:0;
   const cruise=boost?1:THREE.MathUtils.clamp((throttle-.18)/.12,0,1);
-  const intensity=cruise*(.14+.86*boost);
+  const intensity=cruise*boost;
   for(const exhaust of jet?.userData.afterburners||[]){
     if(exhaust.children[0]?.children[0]?.userData.effect==='heat'){
       exhaust.visible=throttle>.35;
@@ -221,6 +221,7 @@ export function updateAfterburners(jet,throttle,time,afterburner=false){
       plume.scale.x=plume.scale.y=.74+boost*.26;
       for(const mesh of plume.children){
         const effect=mesh.userData.effect;
+        if(effect==='sheath'||effect==='core'||effect==='heat')mesh.visible=!!boost;
         const pulse=1+.045*Math.sin(time*(effect==='core'?53:31)+index*2.7);
         if(effect==='liner')mesh.material.opacity=cruise*(.035+.195*boost)*pulse;
         else if(effect==='throat')mesh.material.opacity=cruise*(.12+.5*boost)*pulse;

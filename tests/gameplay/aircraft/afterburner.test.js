@@ -9,10 +9,13 @@ test('bright exhaust appears only for a held boost and returns to dry thrust',()
 
   updateAfterburners(jet,1,0,false);
   const dryOpacity=core.material.opacity,dryLength=plume.scale.z;
+  expect(core.visible).toBe(false);
   updateAfterburners(jet,1,0,true);
+  expect(core.visible).toBe(true);
   expect(core.material.opacity).toBeGreaterThan(dryOpacity*4);
   expect(plume.scale.z).toBeGreaterThan(dryLength*2);
   updateAfterburners(jet,1,0,false);
+  expect(core.visible).toBe(false);
   expect(core.material.opacity).toBeCloseTo(dryOpacity);
   expect(plume.scale.z).toBeCloseTo(dryLength);
 });
