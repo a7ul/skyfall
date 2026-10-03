@@ -3,17 +3,20 @@
 export function targetAirspeed(throttle,aircraftMultiplier=1,airbrake=false){
   if(typeof aircraftMultiplier==='object'){
     const profile=aircraftMultiplier;
+    // Holding the brake must be able to cross the stall threshold by itself.
+    // A low positive target leaves forward motion while the aircraft descends.
+    if(airbrake)return profile.stallSpeed*.14;
     if(profile.afterburner===false){
       const power=Math.max(.2,Math.min(1,throttle));
       const target=power<=.72
         ?profile.minSpeed+(profile.cruiseSpeed-profile.minSpeed)*(power-.2)/.52
         :profile.cruiseSpeed+(profile.maxSpeed-profile.cruiseSpeed)*(power-.72)/.28;
-      return Math.max(profile.minSpeed,target-(airbrake?29*(profile.gameSpeedScale||1):0));
+      return Math.max(profile.minSpeed,target);
     }
     const normal=Math.min(Math.max(throttle,0),.82)/.82;
     const boost=Math.max(0,Math.min(1,(throttle-.82)/.18));
     const target=profile.minSpeed+(profile.cruiseSpeed-profile.minSpeed)*normal+(profile.maxSpeed-profile.cruiseSpeed)*boost;
-    return Math.max(profile.minSpeed,target-(airbrake?29*(profile.gameSpeedScale||1):0));
+    return Math.max(profile.minSpeed,target);
   }
   const cruise=35+Math.min(throttle,.82)*52;
   const afterburner=Math.max(0,throttle-.82)/.18*145;
@@ -33,11 +36,21 @@ export function advanceAirspeed(speed,throttle,multiplier,airbrake,verticalDirec
     const turnLoad=Math.abs(controls.pitchInput)*28+Math.abs(controls.rollInput)*8+Math.abs(controls.yawInput)*10;
     const turnDrag=turnLoad*(1-profile.energyRetention)*dt*scale;
     const alphaDrag=Math.max(0,angleOfAttack-.22)*(highAlpha?26:14)*dt*scale;
-    return Math.max(profile.minSpeed*.68,Math.min(profile.maxSpeed*1.13,speed+engine-gravity-turnDrag-alphaDrag));
+    return Math.max(airbrake?profile.stallSpeed*.08:profile.minSpeed*.68,Math.min(profile.maxSpeed*1.13,speed+engine-gravity-turnDrag-alphaDrag));
   }
   const response=Math.max(0,Math.min(1,dt*.65));
   const engine=Math.max(-(airbrake?48:26)*dt,Math.min((throttle>.82?38:26)*dt,(target-speed)*response));
   const gravity=9.81*verticalDirection*.38*dt;
   const turnDrag=(Math.abs(controls.pitchInput)*.95+Math.abs(controls.yawInput)*.4+Math.abs(controls.rollInput)*.2)*dt;
   return Math.max(25,Math.min(350,speed+engine-gravity-turnDrag));
+}
+
+export function stallSeverity(speed,profile){
+  return Math.max(0,Math.min(1,(profile.stallSpeed-speed)/(profile.stallSpeed*.7)));
+}
+
+export function advanceStallSink(sinkSpeed,speed,profile,dt){
+  const stalled=stallSeverity(speed,profile);
+  const target=stalled*(5+21*stalled);
+  return sinkSpeed+(target-sinkSpeed)*(1-Math.exp(-(stalled>0?2.6:4)*dt));
 }

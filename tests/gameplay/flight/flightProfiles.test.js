@@ -2,7 +2,7 @@ import {test,expect} from 'bun:test';
 import * as THREE from 'three';
 import {FLIGHT_PROFILES,FLIGHT_SPEED_SCALE,flightProfile} from '../../../src/gameplay/aircraft/flightProfiles.js';
 import {createFlightMotion,stepFlightAttitude,stepFlightPath} from '../../../src/gameplay/flight/flightMath.js';
-import {targetAirspeed} from '../../../src/gameplay/flight/flightPerformance.js';
+import {targetAirspeed,advanceAirspeed,stallSeverity,advanceStallSink} from '../../../src/gameplay/flight/flightPerformance.js';
 
 const controls=(pitchInput=0,rollInput=0,yawInput=0)=>({pitchInput,rollInput,yawInput});
 const step=(q,m,c,profile,seconds,speed=80,highAlpha=false)=>{
@@ -37,6 +37,34 @@ test('every aircraft slows by the same factor without changing relative speed ra
       expect(scaled[field]).toBeCloseTo(base[field]*FLIGHT_SPEED_SCALE,8);
     }
   }
+});
+
+test('air brake alone slows every aircraft through stall and releasing it recovers',()=>{
+  for(const id of Object.keys(FLIGHT_PROFILES)){
+    const profile=flightProfile(id);
+    let speed=targetAirspeed(.5,profile),sink=0;
+    for(let frame=0;frame<420;frame++){
+      speed=advanceAirspeed(speed,.5,profile,true,0,controls(),1/60);
+      sink=advanceStallSink(sink,speed,profile,1/60);
+    }
+    expect(speed).toBeLessThan(profile.stallSpeed);
+    expect(speed).toBeGreaterThan(0);
+    expect(stallSeverity(speed,profile)).toBeGreaterThan(.5);
+    expect(sink).toBeGreaterThan(10);
+    for(let frame=0;frame<420;frame++){
+      speed=advanceAirspeed(speed,1,profile,false,0,controls(),1/60);
+      sink=advanceStallSink(sink,speed,profile,1/60);
+    }
+    expect(speed).toBeGreaterThan(profile.stallSpeed);
+    expect(sink).toBeLessThan(.01);
+  }
+});
+
+test('stall weakens roll control',()=>{
+  const profile=flightProfile('a10'),cruise=createFlightMotion(),stalled=createFlightMotion();
+  step(new THREE.Quaternion(),cruise,controls(0,1),profile,1,profile.cruiseSpeed);
+  step(new THREE.Quaternion(),stalled,controls(0,1),profile,1,profile.stallSpeed*.2);
+  expect(stalled.rollRate).toBeLessThan(cruise.rollRate*.4);
 });
 
 test('A-10 retains responsive low-speed roll but remains slower than the F-22',()=>{
