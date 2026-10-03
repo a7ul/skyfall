@@ -1,53 +1,66 @@
 import * as THREE from 'three';
 
-const CAPACITY=36;
-const right=new THREE.Vector3();
-const tangent=new THREE.Vector3();
-const towardCamera=new THREE.Vector3();
+const CAPACITY=72;
+const INTERVAL=.03;
+const LIFETIME=1.65;
+const puffGeometry=new THREE.PlaneGeometry(1,1);
+const dummy=new THREE.Object3D();
+const color=new THREE.Color();
 
-export function createMissileTrail(scene){
-  const positions=new Float32Array(CAPACITY*2*3);
-  const indices=[];
-  for(let i=0;i<CAPACITY-1;i++){
-    const a=i*2;
-    indices.push(a,a+1,a+2,a+1,a+3,a+2);
-  }
-  const geometry=new THREE.BufferGeometry();
-  geometry.setAttribute('position',new THREE.BufferAttribute(positions,3).setUsage(THREE.DynamicDrawUsage));
-  geometry.setIndex(indices);
-  geometry.setDrawRange(0,0);
-  const material=new THREE.MeshBasicMaterial({color:0xd5e0e2,transparent:true,opacity:.58,depthWrite:false,side:THREE.DoubleSide});
-  const mesh=new THREE.Mesh(geometry,material);
+// One instanced draw call per missile keeps long smoke trails affordable.
+export function createMissileTrail(scene,smokeTexture){
+  const material=new THREE.MeshBasicMaterial({map:smokeTexture,color:0xf1f2ef,transparent:true,opacity:.88,depthWrite:false,side:THREE.DoubleSide});
+  const mesh=new THREE.InstancedMesh(puffGeometry,material,CAPACITY);
+  dummy.position.set(0,-100000,0);dummy.quaternion.identity();dummy.scale.setScalar(0);dummy.updateMatrix();
+  for(let i=0;i<CAPACITY;i++)mesh.setMatrixAt(i,dummy.matrix);
+  mesh.instanceMatrix.needsUpdate=true;
   mesh.frustumCulled=false;
+  mesh.renderOrder=2;
   scene.add(mesh);
-  return {mesh,points:[],sampleTime:0};
+  return {mesh,puffs:[],sampleTime:0,lastPosition:null,serial:0};
 }
 
 export function updateMissileTrail(trail,position,camera,dt){
-  trail.sampleTime+=dt;
-  if(!trail.points.length||trail.sampleTime>=.045){
-    trail.points.unshift(position.clone());
-    if(trail.points.length>CAPACITY)trail.points.pop();
-    trail.sampleTime=0;
-  }else trail.points[0].copy(position);
-  const points=trail.points,attribute=trail.mesh.geometry.attributes.position;
-  for(let i=0;i<points.length;i++){
-    const point=points[i];
-    tangent.copy(points[Math.max(0,i-1)]).sub(points[Math.min(points.length-1,i+1)]).normalize();
-    towardCamera.copy(camera.position).sub(point).normalize();
-    right.crossVectors(tangent,towardCamera).normalize();
-    if(right.lengthSq()<.01)right.set(1,0,0);
-    const taper=Math.min(1,(points.length-1-i)/3);
-    const width=(.7+i*.055)*taper;
-    attribute.setXYZ(i*2,point.x+right.x*width,point.y+right.y*width,point.z+right.z*width);
-    attribute.setXYZ(i*2+1,point.x-right.x*width,point.y-right.y*width,point.z-right.z*width);
+  const previous=trail.lastPosition||position;
+  if(position)trail.sampleTime+=dt;
+  const emissions=position?Math.min(6,Math.floor(trail.sampleTime/INTERVAL)):0;
+  for(let i=0;i<emissions;i++){
+    const fraction=emissions===1?1:(i+1)/emissions;
+    const seed=trail.serial++;
+    trail.puffs.unshift({
+      position:previous.clone().lerp(position,fraction),
+      age:0,
+      lateral:Math.sin(seed*2.39996)*(.6+seed%4*.17),
+      vertical:Math.cos(seed*1.618)*.65,
+      size:.85+(seed%5)*.13,
+    });
   }
-  attribute.needsUpdate=true;
-  trail.mesh.geometry.setDrawRange(0,Math.max(0,points.length-1)*6);
+  if(emissions)trail.sampleTime%=INTERVAL;
+  if(position)trail.lastPosition=position.clone();
+  for(const puff of trail.puffs)puff.age+=dt;
+  trail.puffs=trail.puffs.filter(puff=>puff.age<LIFETIME).slice(0,CAPACITY);
+  const right=new THREE.Vector3(1,0,0).applyQuaternion(camera.quaternion);
+  for(let i=0;i<trail.puffs.length;i++){
+    const puff=trail.puffs[i],age=puff.age/LIFETIME;
+    const width=puff.size*(3+age*9);
+    dummy.position.copy(puff.position).addScaledVector(right,puff.lateral*age*2.6);
+    dummy.position.y+=puff.vertical*age+age*age*4.2;
+    dummy.quaternion.copy(camera.quaternion);
+    dummy.rotateZ(Math.sin(i*2.1)*.45);
+    dummy.scale.set(width,width*(.75+age*.55),1);
+    dummy.updateMatrix();
+    trail.mesh.setMatrixAt(i,dummy.matrix);
+    color.setRGB(1-age*.52,1-age*.48,1-age*.43);
+    trail.mesh.setColorAt(i,color);
+  }
+  dummy.scale.setScalar(0);dummy.updateMatrix();
+  for(let i=trail.puffs.length;i<CAPACITY;i++)trail.mesh.setMatrixAt(i,dummy.matrix);
+  trail.mesh.instanceMatrix.needsUpdate=true;
+  if(trail.mesh.instanceColor)trail.mesh.instanceColor.needsUpdate=true;
 }
 
 export function disposeMissileTrail(scene,trail){
   scene.remove(trail.mesh);
-  trail.mesh.geometry.dispose();
   trail.mesh.material.dispose();
+  trail.mesh.dispose();
 }

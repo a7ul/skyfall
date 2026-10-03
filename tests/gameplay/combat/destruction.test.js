@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import {fractureMesh} from '../../../src/gameplay/combat/destruction.js';
 import {createBuildingIndex} from '../../../src/world/lyon/buildings.js';
 import {blastRubbleHeight,shockRadius} from '../../../src/gameplay/combat/nuclearBlast.js';
+import {createCollapseRubble} from '../../../src/gameplay/combat/rubbleField.js';
 
 test('a missile removes a local patch of a transformed tile and produces textured falling pieces',()=>{
   const mesh=new THREE.Mesh(new THREE.PlaneGeometry(20,20,20,20),new THREE.MeshStandardMaterial());
@@ -84,4 +85,14 @@ test('tall structures break into more falling pieces than low ones',()=>{
   const low=fractureMesh(make(20),new THREE.Vector3(0,2,0),30,{building:{polygon,minX:-5,maxX:5,minZ:-5,maxZ:5,top:20}});
   const tall=fractureMesh(make(50),new THREE.Vector3(0,2,0),60,{building:{polygon,minX:-5,maxX:5,minZ:-5,maxZ:5,top:50}});
   expect(tall.length).toBeGreaterThan(low.length);
+  expect(tall.length).toBeGreaterThan(100);
+  expect(low.length).toBeGreaterThan(40);
+});
+
+test('a collapsed building leaves many stones with only two draw calls',()=>{
+  const rubble=createCollapseRubble({minX:-8,maxX:8,minZ:-7,maxZ:7,top:42,rubbleHeight:3});
+  expect(rubble.children.length).toBe(2);
+  expect(rubble.children.every(child=>child.isInstancedMesh)).toBe(true);
+  expect(rubble.children.reduce((count,child)=>count+child.count,0)).toBeGreaterThan(100);
+  rubble.traverse(child=>{if(child.isMesh){child.geometry.dispose();child.material.dispose();}});
 });

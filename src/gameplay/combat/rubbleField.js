@@ -65,3 +65,33 @@ export function createRubbleField(position,sites){
   }
   return group;
 }
+
+// A collapsed facade needs many small silhouettes at the footprint, without
+// paying for one draw call per stone in the streamed city.
+export function createCollapseRubble(building){
+  const centerX=(building.minX+building.maxX)/2,centerZ=(building.minZ+building.maxZ)/2;
+  const width=Math.max(4,building.maxX-building.minX),depth=Math.max(4,building.maxZ-building.minZ);
+  const random=randomFor(centerX,centerZ);
+  const count=Math.min(220,Math.max(75,Math.round(width*depth*.36+building.top*1.4)));
+  const group=new THREE.Group();group.name='Collapsed building rubble';
+  const dummy=new THREE.Object3D(),color=new THREE.Color();
+  for(const kind of ['slab','stone']){
+    const amount=kind==='slab'?Math.floor(count*.38):count-Math.floor(count*.38);
+    const geometry=kind==='slab'?new THREE.BoxGeometry(1,1,1):new THREE.TetrahedronGeometry(1,0);
+    const material=new THREE.MeshStandardMaterial({color:0xffffff,roughness:1});
+    const mesh=new THREE.InstancedMesh(geometry,material,amount);
+    for(let i=0;i<amount;i++){
+      const x=centerX+(random()-.5)*width*1.35,z=centerZ+(random()-.5)*depth*1.35;
+      const size=kind==='slab'?.55+random()*2.1:.35+random()*1.25;
+      dummy.position.set(x,building.rubbleHeight*.35+random()*1.4,z);
+      dummy.rotation.set((random()-.5)*.65,random()*Math.PI*2,(random()-.5)*.65);
+      dummy.scale.set(kind==='slab'?size*1.65:size,kind==='slab'?.22+random()*.55:size,kind==='slab'?size*1.3:size);
+      dummy.updateMatrix();mesh.setMatrixAt(i,dummy.matrix);
+      mesh.setColorAt(i,color.setHex(COLORS[Math.floor(random()*COLORS.length)]));
+    }
+    mesh.instanceMatrix.needsUpdate=true;
+    if(mesh.instanceColor)mesh.instanceColor.needsUpdate=true;
+    mesh.computeBoundingSphere();group.add(mesh);
+  }
+  return group;
+}

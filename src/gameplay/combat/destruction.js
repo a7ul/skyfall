@@ -22,15 +22,13 @@ export function fractureMesh(mesh, point, radius, {makeFragments=true, faceIndex
   mesh.getWorldScale(scale);
   const minimumScale = Math.max(.0001, Math.min(Math.abs(scale.x), Math.abs(scale.y), Math.abs(scale.z)));
   const localRadiusSq = (radius / minimumScale) ** 2;
-  const tierCount=building?(building.top>40?5:building.top>24?4:3):0;
-  const sectors=building?(building.top>40?12:building.top>24?9:6):0;
-  const shardCount=building?tierCount*sectors:10;
-  const shards = makeFragments ? Array.from({length: shardCount}, () => ({positions: [], uvs: [], sum: new THREE.Vector3(), count: 0})) : null;
+  const cellSize=building?3.2:Math.max(1.3,radius/5);
+  const shardLimit=building?180:48;
+  const shards = makeFragments ? new Map() : null;
   const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3();
   const original = [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()];
   let removed = 0;
   let captured = 0;
-  let surfaceAxis = null;
   for (let triangle = 0; triangle < triangleCount; triangle++) {
     const ids = index
       ? [index.getX(triangle * 3), index.getX(triangle * 3 + 1), index.getX(triangle * 3 + 2)]
@@ -49,29 +47,22 @@ export function fractureMesh(mesh, point, radius, {makeFragments=true, faceIndex
     }else if (center.distanceToSquared(localImpact) > localRadiusSq && triangle !== faceIndex) continue;
     if (a.distanceToSquared(b) < .0001 || b.distanceToSquared(c) < .0001) continue;
 
-    if (shards && removed % (building?Math.max(1,Math.floor(triangleCount/1500)):2) === 0 && captured < (building?1500:550)) {
-      captured++;
-      if (surfaceAxis === null) {
-        const normal=b.clone().sub(a).cross(c.clone().sub(a));
-        const axes=[Math.abs(normal.x),Math.abs(normal.y),Math.abs(normal.z)];
-        surfaceAxis=axes.indexOf(Math.max(...axes));
-      }
-      const u=surfaceAxis===0?center.y-localImpact.y:center.x-localImpact.x;
-      const v=surfaceAxis===2?center.y-localImpact.y:center.z-localImpact.z;
-      const angle=Math.atan2(v,u);
-      const bucket=building
-        ? Math.min(shardCount-1,Math.floor(Math.max(0,Math.min(.999,(center.y-2)/Math.max(1,building.top)))*tierCount)*sectors+Math.floor((angle+Math.PI)/(Math.PI*2)*sectors))
-        : Math.min(9,Math.max(0,Math.floor((angle+Math.PI)/(Math.PI*2)*10)));
+    if (shards && removed % 2 === 0 && captured < 2400) {
       original[0].copy(a).applyMatrix4(mesh.matrixWorld);
       original[1].copy(b).applyMatrix4(mesh.matrixWorld);
       original[2].copy(c).applyMatrix4(mesh.matrixWorld);
       center.copy(original[0]).add(original[1]).add(original[2]).multiplyScalar(1 / 3);
-      const shard = shards[bucket];
-      for (let i = 0; i < 3; i++) {
-        shard.positions.push(original[i].x, original[i].y, original[i].z);
-        if (uv) shard.uvs.push(uv.getX(ids[i]), uv.getY(ids[i]));
-        shard.sum.add(original[i]);
-        shard.count++;
+      const key=`${Math.floor(center.x/cellSize)},${Math.floor(center.y/cellSize)},${Math.floor(center.z/cellSize)}`;
+      let shard=shards.get(key);
+      if(!shard&&shards.size<shardLimit){shard={positions:[],uvs:[],sum:new THREE.Vector3(),count:0};shards.set(key,shard);}
+      if(shard){
+        captured++;
+        for (let i = 0; i < 3; i++) {
+          shard.positions.push(original[i].x, original[i].y, original[i].z);
+          if (uv) shard.uvs.push(uv.getX(ids[i]), uv.getY(ids[i]));
+          shard.sum.add(original[i]);
+          shard.count++;
+        }
       }
     }
     if (index) {
@@ -90,7 +81,7 @@ export function fractureMesh(mesh, point, radius, {makeFragments=true, faceIndex
   if (!shards) return [];
 
   const sourceMaterial = Array.isArray(mesh.material) ? mesh.material[0] : mesh.material;
-  return shards.filter(shard => shard.count).map(shard => {
+  return [...shards.values()].map(shard => {
     const origin = shard.sum.multiplyScalar(1 / shard.count);
     const vertices = new Float32Array(shard.positions.length);
     for (let i = 0; i < vertices.length; i += 3) {
