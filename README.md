@@ -4,6 +4,9 @@
 
 This project asks how far modern browser graphics and AI-assisted development can go. The challenge was to direct and playtest the game through prompts and visuals, without manually reading the implementation code. WebGPU, local map storage, open city data, and off-the-shelf aircraft assets made a browser-only version possible without an API key, billing account, or game installation.
 
+<video src="https://github.com/a7ul/skyfall/releases/download/assets/gameplay.mp4" width="320" height="240" controls></video>
+
+
 [![Promotional artwork: F-22 over Lyon](https://github.com/a7ul/skyfall/releases/download/assets/f22-over-lyon.png)](https://github.com/a7ul/skyfall/releases/download/assets/f22-over-lyon.png)
 
 *Generated promotional artwork. The gameplay captures below show the current build.*
@@ -24,8 +27,6 @@ The folder selection is remembered for the same browser and site across refreshe
 #### Setup video tutorial
 
 <video src="https://github.com/user-attachments/assets/6e807316-f05f-473f-80f0-1b9f35f79319" width="320" height="240" controls></video>
-
-
 
 ## The game
 
