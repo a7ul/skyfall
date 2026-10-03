@@ -76,6 +76,7 @@ if(debugOutput){
     get traffic(){return {total:world?.traffic?.count,visible:world?.traffic?.visibleCount,sample:world?.traffic?.sampleVehicle?.position.toArray()};},
     get damage(){return {craters:groundCraters.length,collapsed:collapseRubble.length};},
     get flight(){return {aircraft:AIRCRAFT[selected].id,position:jet?.position.toArray(),speed,throttle,roll:THREE.MathUtils.radToDeg(roll),pitch:THREE.MathUtils.radToDeg(pitch),rates:{...flightMotion},angleOfAttack:THREE.MathUtils.radToDeg(flightMotion.angleOfAttack),highAlpha,velocity:flightVelocity.toArray(),paused};},
+    get cameraFraming(){return jet?{distance:camera.position.distanceTo(jet.position),jetScreen:jet.position.clone().project(camera).toArray(),mode:cameraMode}:null;},
     get storyState(){return {phase,stage:MISSION_STAGES[phase]?.id,targets:(phase===0?radars:enemies).filter(item=>item.alive).map(item=>item.name),objective:$('objective').textContent,radio:$('radio-text').textContent};},
     completeStoryStage(){
       if(phase===3){finish(true);return {complete:ended,title:$('overlay-title').textContent};}
@@ -182,7 +183,7 @@ function updateFlight(dt){
   const c=getControls(),spec=AIRCRAFT[selected],profile=flightProfile(spec.id);
   throttle=clamp(throttle+c.throttleInput*dt*.34,.2,1);
   for(const axis of ['pitchInput','rollInput','yawInput'])flightControls[axis]=THREE.MathUtils.damp(flightControls[axis],c[axis],10,dt);
-  highAlpha=!!c.highAlpha&&flightControls.pitchInput>.35&&profile.thrustVectoring>0&&speed>38&&speed<145;
+  highAlpha=!!c.highAlpha&&flightControls.pitchInput>.35&&profile.thrustVectoring>0&&speed>38*profile.gameSpeedScale&&speed<145*profile.gameSpeedScale;
   speed=advanceAirspeed(speed,throttle,profile,airbrake,flightVelocity.y/Math.max(speed,1),flightControls,dt,flightMotion.angleOfAttack,highAlpha);
   stepFlightAttitude(quat,flightMotion,flightControls,dt,profile,speed,airbrake,highAlpha);
   jet.quaternion.copy(quat);
@@ -1053,7 +1054,7 @@ function updateEnemyShots(dt){
     if(hit||blocked||shot.life<=0){removeObject(shot.mesh);enemyShots.splice(i,1);}
   }
 }
-function updateCamera(dt){if(!jet)return;const local=cameraMode===0?new THREE.Vector3(0,3.6,19):cameraMode===1?new THREE.Vector3(0,.74,-3.1):new THREE.Vector3(14,5.5,22);const desired=local.applyQuaternion(quat).add(jet.position);camera.position.lerp(desired,cameraMode===1||dt>=1?1:1-Math.exp(-9*dt));cameraShake=THREE.MathUtils.damp(cameraShake,0,9,dt);if(cameraShake>.005)camera.position.add(new THREE.Vector3((Math.random()-.5)*cameraShake,(Math.random()-.5)*cameraShake,(Math.random()-.5)*cameraShake));const look=jet.position.clone().addScaledVector(forward,cameraMode===1?350:210);if(cameraMode===2)look.add(new THREE.Vector3(0,1,0));const aircraftUp=up.clone().applyQuaternion(quat);camera.up.copy(cameraMode===1?aircraftUp:up.clone().lerp(aircraftUp,.18).normalize());camera.lookAt(look);jet.visible=cameraMode!==1;$('cockpit').classList.toggle('hidden',cameraMode!==1);$('camera-state').textContent=['CHASE CAM','COCKPIT CAM','CINEMATIC CAM'][cameraMode];}
+function updateCamera(dt){if(!jet)return;const local=cameraMode===0?new THREE.Vector3(0,3.6,19):cameraMode===1?new THREE.Vector3(0,.74,-3.1):new THREE.Vector3(14,5.5,22);const desired=local.applyQuaternion(quat).add(jet.position);camera.position.copy(desired);cameraShake=THREE.MathUtils.damp(cameraShake,0,9,dt);if(cameraShake>.005)camera.position.add(new THREE.Vector3((Math.random()-.5)*cameraShake,(Math.random()-.5)*cameraShake,(Math.random()-.5)*cameraShake));const look=jet.position.clone().addScaledVector(forward,cameraMode===1?350:210);if(cameraMode===2)look.add(new THREE.Vector3(0,1,0));const aircraftUp=up.clone().applyQuaternion(quat);camera.up.copy(cameraMode===1?aircraftUp:up.clone().lerp(aircraftUp,.18).normalize());camera.lookAt(look);jet.visible=cameraMode!==1;$('cockpit').classList.toggle('hidden',cameraMode!==1);$('camera-state').textContent=['CHASE CAM','COCKPIT CAM','CINEMATIC CAM'][cameraMode];}
 function updateMenuCamera(dt){if(!previewJet)return;const t=performance.now()*.00014;animateControlSurfaces(previewJet,{pitchInput:Math.sin(t*7)*.35,rollInput:Math.sin(t*5)*.45,yawInput:Math.sin(t*4)*.3},dt);updateAfterburners(previewJet,.91,t*140);previewJet.rotation.y=-.22+Math.sin(t)*.07;previewJet.rotation.z=-.09+Math.sin(t*1.4)*.025;camera.position.set(80+Math.sin(t)*5,265,530);camera.up.set(0,1,0);camera.lookAt(-20,65,30);}
 function updateRadar(){const wrap=$('radar-contacts');wrap.innerHTML='';if(!jet)return;const contacts=[...radars,...enemies].filter(t=>t.alive);if(extraction)contacts.push({position:extraction.position,type:'friendly'});for(const t of contacts){const d=t.position.clone().sub(jet.position);const planar=new THREE.Vector3(d.x,0,d.z).applyAxisAngle(up,-yaw);const x=clamp(50+planar.x/80,-1,101),y=clamp(50+planar.z/80,-1,101);if(x<0||x>100||y<0||y>100)continue;const dot=document.createElement('div');dot.className='contact'+(t.type==='friendly'?' friendly':'');dot.style.left=x+'%';dot.style.top=y+'%';wrap.appendChild(dot);}}
 function updateHud(){

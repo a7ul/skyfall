@@ -8,12 +8,12 @@ export function targetAirspeed(throttle,aircraftMultiplier=1,airbrake=false){
       const target=power<=.72
         ?profile.minSpeed+(profile.cruiseSpeed-profile.minSpeed)*(power-.2)/.52
         :profile.cruiseSpeed+(profile.maxSpeed-profile.cruiseSpeed)*(power-.72)/.28;
-      return Math.max(profile.minSpeed,target-(airbrake?29:0));
+      return Math.max(profile.minSpeed,target-(airbrake?29*(profile.gameSpeedScale||1):0));
     }
     const normal=Math.min(Math.max(throttle,0),.82)/.82;
     const boost=Math.max(0,Math.min(1,(throttle-.82)/.18));
     const target=profile.minSpeed+(profile.cruiseSpeed-profile.minSpeed)*normal+(profile.maxSpeed-profile.cruiseSpeed)*boost;
-    return Math.max(profile.minSpeed,target-(airbrake?29:0));
+    return Math.max(profile.minSpeed,target-(airbrake?29*(profile.gameSpeedScale||1):0));
   }
   const cruise=35+Math.min(throttle,.82)*52;
   const afterburner=Math.max(0,throttle-.82)/.18*145;
@@ -28,10 +28,11 @@ export function advanceAirspeed(speed,throttle,multiplier,airbrake,verticalDirec
     const profile=multiplier;
     const acceleration=profile.acceleration*(throttle>.82&&profile.afterburner!==false?1.24:1);
     const engine=Math.max(-(airbrake?profile.brakeDeceleration:profile.acceleration)*dt,Math.min(acceleration*dt,(target-speed)*.9*dt));
-    const gravity=9.81*verticalDirection*.4*dt;
+    const scale=profile.gameSpeedScale||1;
+    const gravity=9.81*verticalDirection*.4*dt*scale;
     const turnLoad=Math.abs(controls.pitchInput)*28+Math.abs(controls.rollInput)*8+Math.abs(controls.yawInput)*10;
-    const turnDrag=turnLoad*(1-profile.energyRetention)*dt;
-    const alphaDrag=Math.max(0,angleOfAttack-.22)*(highAlpha?26:14)*dt;
+    const turnDrag=turnLoad*(1-profile.energyRetention)*dt*scale;
+    const alphaDrag=Math.max(0,angleOfAttack-.22)*(highAlpha?26:14)*dt*scale;
     return Math.max(profile.minSpeed*.68,Math.min(profile.maxSpeed*1.13,speed+engine-gravity-turnDrag-alphaDrag));
   }
   const response=Math.max(0,Math.min(1,dt*.65));

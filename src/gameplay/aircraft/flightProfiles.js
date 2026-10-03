@@ -12,8 +12,27 @@ export const FLIGHT_PROFILES={
   a10:{name:'Low-altitude attack',minSpeed:50,cruiseSpeed:92,maxSpeed:160,stallSpeed:42,acceleration:23,brakeDeceleration:36,pitchRate:1.04,rollRate:1.55,yawRate:.48,response:4.1,angularAcceleration:3.7,gLimit:6,pathResponse:2.8,energyRetention:.96,thrustVectoring:0,maneuverSpeed:62,afterburner:false},
 };
 
+// Keep the aircraft's relative envelopes while giving players more time to
+// read city streets. Acceleration, stall thresholds, and load limits scale
+// with distance speed so the same stick inputs retain their handling feel.
+export const FLIGHT_SPEED_SCALE=.8;
+const scaledProfiles=Object.fromEntries(Object.entries(FLIGHT_PROFILES).map(([id,profile])=>[
+  id,{
+    ...profile,
+    minSpeed:profile.minSpeed*FLIGHT_SPEED_SCALE,
+    cruiseSpeed:profile.cruiseSpeed*FLIGHT_SPEED_SCALE,
+    maxSpeed:profile.maxSpeed*FLIGHT_SPEED_SCALE,
+    stallSpeed:profile.stallSpeed*FLIGHT_SPEED_SCALE,
+    acceleration:profile.acceleration*FLIGHT_SPEED_SCALE,
+    brakeDeceleration:profile.brakeDeceleration*FLIGHT_SPEED_SCALE,
+    maneuverSpeed:profile.maneuverSpeed*FLIGHT_SPEED_SCALE,
+    gLimit:profile.gLimit*FLIGHT_SPEED_SCALE,
+    gameSpeedScale:FLIGHT_SPEED_SCALE,
+  }
+]));
+
 export function flightProfile(id){
-  const profile=FLIGHT_PROFILES[id];
+  const profile=scaledProfiles[id];
   if(!profile)throw new RangeError(`Unknown aircraft flight profile: ${id}`);
   return profile;
 }

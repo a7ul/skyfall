@@ -1,6 +1,6 @@
 import {test,expect} from 'bun:test';
 import * as THREE from 'three';
-import {FLIGHT_PROFILES,flightProfile} from '../../../src/gameplay/aircraft/flightProfiles.js';
+import {FLIGHT_PROFILES,FLIGHT_SPEED_SCALE,flightProfile} from '../../../src/gameplay/aircraft/flightProfiles.js';
 import {createFlightMotion,stepFlightAttitude,stepFlightPath} from '../../../src/gameplay/flight/flightMath.js';
 import {targetAirspeed} from '../../../src/gameplay/flight/flightPerformance.js';
 
@@ -16,24 +16,33 @@ test('every selectable jet has a distinct speed and handling envelope',()=>{
   expect(flightProfile('a10').maxSpeed).toBeLessThan(flightProfile('f22').maxSpeed);
   expect(flightProfile('f16').rollRate).toBeGreaterThan(flightProfile('f15').rollRate);
   expect(flightProfile('su35').thrustVectoring).toBeGreaterThan(flightProfile('f22').thrustVectoring);
-  expect(flightProfile('f35').gLimit).toBe(9);
+  expect(FLIGHT_PROFILES.f35.gLimit).toBe(9);
   expect(flightProfile('f15').maxSpeed).toBeGreaterThan(flightProfile('f16').maxSpeed);
 });
 
 test('A-10 launches at a usable attack speed without fighter-style afterburner',()=>{
   const a10=flightProfile('a10'),f22=flightProfile('f22');
   expect(a10.afterburner).toBe(false);
-  expect(targetAirspeed(.5,a10)*1.944).toBeGreaterThan(140);
+  expect(targetAirspeed(.5,a10)*1.944).toBeGreaterThan(110);
   expect(targetAirspeed(.5,a10)).toBeLessThan(targetAirspeed(.5,f22));
-  expect(targetAirspeed(1,a10)).toBe(160);
+  expect(targetAirspeed(1,a10)).toBe(160*FLIGHT_SPEED_SCALE);
   expect(targetAirspeed(1,a10)).toBeLessThan(targetAirspeed(1,f22));
   expect(targetAirspeed(.83,a10)-targetAirspeed(.81,a10)).toBeLessThan(6);
 });
 
+test('every aircraft slows by the same factor without changing relative speed ratios',()=>{
+  for(const [id,base] of Object.entries(FLIGHT_PROFILES)){
+    const scaled=flightProfile(id);
+    for(const field of ['minSpeed','cruiseSpeed','maxSpeed','stallSpeed','acceleration','maneuverSpeed']){
+      expect(scaled[field]).toBeCloseTo(base[field]*FLIGHT_SPEED_SCALE,8);
+    }
+  }
+});
+
 test('A-10 retains responsive low-speed roll but remains slower than the F-22',()=>{
   const a10Motion=createFlightMotion(),f22Motion=createFlightMotion();
-  step(new THREE.Quaternion(),a10Motion,controls(0,1),flightProfile('a10'),1,73);
-  step(new THREE.Quaternion(),f22Motion,controls(0,1),flightProfile('f22'),1,73);
+  step(new THREE.Quaternion(),a10Motion,controls(0,1),flightProfile('a10'),1,73*FLIGHT_SPEED_SCALE);
+  step(new THREE.Quaternion(),f22Motion,controls(0,1),flightProfile('f22'),1,73*FLIGHT_SPEED_SCALE);
   expect(a10Motion.rollRate).toBeGreaterThan(1.3);
   expect(a10Motion.rollRate).toBeLessThan(f22Motion.rollRate);
 });

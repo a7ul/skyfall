@@ -30,7 +30,8 @@ export function stepFlightAttitude(orientation,motion,controls,dt,profile,airspe
   const clamp=THREE.MathUtils.clamp;
   const authority=clamp(airspeed/(profile.maneuverSpeed||85),profile.thrustVectoring ? .55 : .38,1.08);
   const structuralRate=profile.gLimit*9.81/Math.max(airspeed,57)*(airbrake?1.12:1);
-  const assisted=highAlpha&&profile.thrustVectoring>0&&airspeed>38&&airspeed<145;
+  const scale=profile.gameSpeedScale||1;
+  const assisted=highAlpha&&profile.thrustVectoring>0&&airspeed>38*scale&&airspeed<145*scale;
   const pitchLimit=Math.min(profile.pitchRate*authority*(assisted?1+profile.thrustVectoring*.65:1),structuralRate*(assisted?1.7:1));
   const rollLimit=profile.rollRate*clamp(airspeed/((profile.maneuverSpeed||85)*.86),.55,1.08);
   const yawLimit=Math.min(profile.yawRate*authority*(assisted?1.25:1),structuralRate*.85*(assisted?1.5:1));
@@ -49,7 +50,8 @@ const flightPathDirection=new THREE.Vector3();
 export function stepFlightPath(velocity,noseForward,airspeed,dt,profile,highAlpha=false){
   if(velocity.lengthSq()<.001)velocity.copy(noseForward).multiplyScalar(airspeed);
   flightPathDirection.copy(velocity).normalize();
-  const assisted=highAlpha&&profile.thrustVectoring>0&&airspeed>38&&airspeed<145;
+  const scale=profile.gameSpeedScale||1;
+  const assisted=highAlpha&&profile.thrustVectoring>0&&airspeed>38*scale&&airspeed<145*scale;
   const response=profile.pathResponse*(assisted ? .21 : 1);
   flightPathDirection.lerp(noseForward,1-Math.exp(-response*dt)).normalize();
   velocity.copy(flightPathDirection).multiplyScalar(airspeed);
