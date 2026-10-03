@@ -23,12 +23,12 @@ export async function createLyonWorld(scene,onProgress=()=>{},renderer,camera){
   const buildingIndex=createBuildingIndex(buildingData.buildings);
   sky.mapping=THREE.EquirectangularReflectionMapping;sky.colorSpace=THREE.SRGBColorSpace;
   lighting.mapping=THREE.EquirectangularReflectionMapping;
-  scene.background=sky;scene.backgroundIntensity=.95;
-  scene.environment=lighting;scene.environmentIntensity=.68;
-  scene.fog=new THREE.FogExp2(0xc4b5a7,.000085);
-  scene.add(new THREE.HemisphereLight(0xcbd8e8,0x70645b,1.05));
-  // Match the low sun in the late-afternoon equirectangular sky.
-  const sun=new THREE.DirectionalLight(0xffd2a5,1.95);sun.position.set(890,420,625);scene.add(sun);
+  scene.background=sky;scene.backgroundIntensity=.92;
+  scene.environment=lighting;scene.environmentIntensity=.64;
+  scene.fog=new THREE.FogExp2(0xc3aa96,.00011);
+  scene.add(new THREE.HemisphereLight(0xb9cee0,0x75675c,.94));
+  // Keep the key light near the photographed sun for a warm, low-angle pass.
+  const sun=new THREE.DirectionalLight(0xffc288,2.05);sun.position.set(950,155,650);scene.add(sun);
 
   const tiles=new TilesRenderer(asset('lyon-photomesh/tileset.json'));
   // The camera gets finer visible tiles. A modest region ahead of the jet

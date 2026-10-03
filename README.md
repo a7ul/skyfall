@@ -28,9 +28,9 @@ The four aircraft have different flight tuning. Chase, cockpit, and cinematic vi
 
 These are captures from the current Lyon build. The city, aircraft, targeting cue, and HUD shown here are in the game. Click an image for the copy in the [media release](https://github.com/a7ul/skyfall/releases/tag/assets).
 
-| A pass above central Lyon | Low flight with a road-vehicle target |
-| --- | --- |
-| [![Fighter jet above detailed Lyon rooftops](docs/screenshots/lyon-high-detail.png)](https://github.com/a7ul/skyfall/releases/download/assets/lyon-high-detail.png) | [![Fighter jet targeting a road vehicle in Lyon](docs/screenshots/lyon-free-flight.png)](https://github.com/a7ul/skyfall/releases/download/assets/lyon-free-flight.png) |
+| Golden-hour skyline | Su-35 at full throttle | F-35 cinematic view |
+| --- | --- | --- |
+| [![Su-35 approaching Lyon's hilltop landmarks at golden hour](docs/screenshots/golden-hour-sun.webp)](https://github.com/a7ul/skyfall/releases/download/assets/golden-hour-lyon-gameplay.png) | [![Su-35 flying above Lyon with both afterburners lit](docs/screenshots/su35-afterburner.webp)](https://github.com/a7ul/skyfall/releases/download/assets/su35-afterburner-gameplay.png) | [![F-35 cinematic camera over the Lyon photomesh](docs/screenshots/f35-cinematic.webp)](https://github.com/a7ul/skyfall/releases/download/assets/f35-cinematic-golden-hour.png) |
 
 ## Aircraft and combat artwork
 
@@ -101,4 +101,4 @@ A local static Pages build is available with `VITE_BASE_PATH=/skyfall/ bun run b
 
 ## Credits and licenses
 
-The fighter models are third-party assets with **noncommercial licenses**; check [aircraft attribution](public/assets/aircraft/ATTRIBUTION.md) before redistribution or commercial use. The late-afternoon sky and HDR lighting come from [Poly Haven's Qwantani Late Afternoon (Pure Sky)](https://polyhaven.com/a/qwantani_late_afternoon_puresky), CC0. Sound sources and licenses are in [audio credits](public/assets/audio/CREDITS.md). The Lyon and OpenStreetMap data retain the licenses linked above.
+The fighter models are third-party assets with **noncommercial licenses**; check [aircraft attribution](public/assets/aircraft/ATTRIBUTION.md) before redistribution or commercial use. The golden-hour sky and HDR lighting come from [Poly Haven's Industrial Sunset 02 (Pure Sky)](https://polyhaven.com/a/industrial_sunset_02_puresky), CC0. Sound sources and licenses are in [audio credits](public/assets/audio/CREDITS.md). The Lyon and OpenStreetMap data retain the licenses linked above.
