@@ -4,6 +4,7 @@ import {AIRCRAFT,createJet,loadJetModels,updateAfterburners} from '../gameplay/a
 import {animateControlSurfaces} from '../gameplay/aircraft/controlSurfaces.js';
 import {createLyonWorld as createWorld} from '../world/lyon/lyonWorld.js';
 import {createRadar,createEnemy,createExtraction,terrainHeight} from '../mission/entities.js';
+import {createStoryDirector,MISSION_STAGES,MISSION_TITLE} from '../mission/story.js';
 import {FlightAudio} from '../audio/flightAudio.js';
 import {applyFlightInput,compassHeading} from '../gameplay/flight/flightMath.js';
 import {keyboardAxes} from '../gameplay/flight/inputMapping.js';
@@ -25,6 +26,8 @@ const audio=new FlightAudio();
 const scene=new THREE.Scene();
 const camera=new THREE.PerspectiveCamera(67,innerWidth/innerHeight,.5,50000);
 let renderer,world,selected=0,jet,previewJet,mode='menu',paused=false,ended=false,phase=0,elapsed=0,kills=0,shots=0,missiles=6,bombAmmo=4,nuclearAmmo=1,health=100,throttle=.55,speed=68,pitch=0,yaw=0,roll=0,gunTime=0,gunCooldown=0,missileCooldown=0,bombCooldown=0,lockTime=0,target=null,radars=[],enemies=[],enemyShots=[],extraction=null,projectiles=[],lingeringTrails=[],bombProjectiles=[],nuclearEffects=[],bullets=[],particles=[],damageMarks=[],groundCraters=[],wrecks=[],fires=[],debris=[],cameraMode=0,radioTime=0,radioText='',lastWarning=0,mouseX=0,mouseY=0,mouseActive=false,gamepadWasPressed=false,bombWasPressed=false,nukeWasPressed=false,airbrake=false,hudTimer=0,cityFloor=-100,cityFloorTimer=0,weaponCueTimer=0,cameraShake=0,blastFlash=0;
+const story=createStoryDirector();
+let radioQueue=[],storyHistory=[],stageBannerUntil=0;
 const flightControls={pitchInput:0,rollInput:0,yawInput:0};
 const keys=new Set();const forward=new THREE.Vector3(),quat=new THREE.Quaternion(),tmp=new THREE.Vector3(),up=new THREE.Vector3(0,1,0);const euler=new THREE.Euler(0,0,0,'YXZ');const clock=new THREE.Clock();
 const clamp=THREE.MathUtils.clamp;
@@ -68,11 +71,41 @@ if(debugOutput){
       return [x,y,z];
     },
     get traffic(){return {total:world?.traffic?.count,visible:world?.traffic?.visibleCount,sample:world?.traffic?.sampleVehicle?.position.toArray()};},
-    get damage(){return {craters:groundCraters.length,collapsed:collapseRubble.length};}
+    get damage(){return {craters:groundCraters.length,collapsed:collapseRubble.length};},
+    get storyState(){return {phase,stage:MISSION_STAGES[phase]?.id,targets:(phase===0?radars:enemies).filter(item=>item.alive).map(item=>item.name),objective:$('objective').textContent,radio:$('radio-text').textContent};},
+    completeStoryStage(){
+      if(phase===3){finish(true);return {complete:ended,title:$('overlay-title').textContent};}
+      for(const item of [...(phase===0?radars:enemies)])if(item.alive)onTargetDestroyed(item);
+      return this.storyState;
+    }
   };
 }
 
-function setRadio(message){radioText=message;radioTime=elapsed;$('radio').textContent=message;}
+function setRadio(message,speaker='ECHO / AWACS'){
+  radioText=message;radioTime=elapsed;
+  $('radio-text').textContent=message;$('radio-speaker').textContent=speaker;
+}
+function queueRadio(speaker,text){radioQueue.push({speaker,text});}
+function updateStory(dt){
+  if(mode!=='mission')return;
+  for(const cue of story.tick(dt))queueRadio(cue.speaker,cue.text);
+  if(radioQueue.length&&elapsed-radioTime>4.6){
+    const {speaker,text}=radioQueue.shift();setRadio(text,speaker);
+    storyHistory.push({speaker,text});if(storyHistory.length>12)storyHistory.shift();
+    audio.tone(740,.065,'sine',.035,510);
+  }
+  $('stage-banner').classList.toggle('hidden',elapsed>stageBannerUntil);
+}
+function enterMissionStage(index){
+  phase=index;const stage=story.enter(index);
+  radioQueue=[];radioTime=-100;
+  $('stage-label').textContent=stage.label;
+  $('stage-title').textContent=stage.title;
+  $('stage-description').textContent=stage.description;
+  stageBannerUntil=elapsed+5.5;
+  $('stage-banner').classList.remove('hidden');
+  updateObjective();
+}
 function updateJetOptions(){ui.options.innerHTML='';AIRCRAFT.forEach((spec,i)=>{const b=document.createElement('button');b.className='jet-option'+(selected===i?' active':'');b.innerHTML=`<small>${String(i+1).padStart(2,'0')} / ${spec.role.split(' ')[0]}</small><strong>${spec.label}</strong>`;b.onclick=()=>{selected=i;audio.click();updateJetOptions();setPreviewJet();};ui.options.appendChild(b)});const a=AIRCRAFT[selected];ui.count.textContent=`${String(selected+1).padStart(2,'0')} / ${String(AIRCRAFT.length).padStart(2,'0')}`;ui.detail.textContent=`${a.origin}  /  ${a.role}  /  SPEED ${Math.round(a.speed*100)}  /  AGILITY ${Math.round(a.turn*100)}`;}
 function setPreviewJet(){if(previewJet)removeObject(previewJet);previewJet=createJet(AIRCRAFT[selected],2.15);previewJet.position.set(0,180,300);previewJet.rotation.set(.02,-.18,-.12);scene.add(previewJet);}
 
@@ -87,15 +120,37 @@ async function init(){
 
 function removeObject(object){if(!object)return;scene.remove(object);if(object.userData.afterburners){for(const exhaust of object.userData.afterburners)exhaust.traverse(child=>{if(child.isMesh)child.material.dispose();});return;}object.traverse(child=>{if(child.isMesh){child.geometry.dispose();const materials=Array.isArray(child.material)?child.material:[child.material];for(const material of materials)material?.dispose();}});}
 function clearSceneObjects(){removeObject(jet);jet=null;removeObject(previewJet);previewJet=null;for(const t of [...radars,...enemies])removeObject(t.group);for(const m of [...projectiles,...bombProjectiles,...bullets])removeObject(m.mesh);for(const m of projectiles)disposeMissileTrail(scene,m.trail);for(const trail of lingeringTrails)disposeMissileTrail(scene,trail);for(const effect of nuclearEffects)disposeNuclearEffect(effect);for(const shot of enemyShots)removeObject(shot.mesh);for(const p of particles){scene.remove(p.mesh);if(!p.sharedGeometry)p.mesh.geometry.dispose();p.mesh.material.dispose();}for(const mark of damageMarks){scene.remove(mark);mark.geometry.dispose();mark.material.dispose();}for(const crater of groundCraters)removeObject(crater);for(const wreck of wrecks)removeObject(wreck.group);for(const fire of fires)for(const sprite of [fire.mesh,...fire.layers]){scene.remove(sprite);sprite.material.dispose();}for(const piece of debris)removeObject(piece.mesh);for(const rubble of [...blastRubble,...collapseRubble])removeObject(rubble);blastRubble.length=collapseRubble.length=0;world?.resetDamage?.();world?.traffic?.reset();if(extraction)removeObject(extraction.group);radars=[];enemies=[];enemyShots=[];projectiles=[];bombProjectiles=[];nuclearEffects=[];bullets=[];particles=[];damageMarks=[];groundCraters=[];wrecks=[];fires=[];debris=[];extraction=null;blastFlash=0;$('blast-flash').style.opacity='0';$('nuke-countdown').classList.add('hidden');}
-function start(free=false){if(!renderer)return;audio.setGunFiring(false);clearSceneObjects();audio.init();audio.ctx?.resume();audio.setActive(true);mode=free?'free':'mission';paused=false;ended=false;phase=0;elapsed=0;kills=0;shots=0;missiles=free?99:6;bombAmmo=free?99:4;nuclearAmmo=free?Infinity:1;bombCooldown=0;health=100;throttle=free?.3:.68;speed=targetAirspeed(throttle,AIRCRAFT[selected].speed);pitch=0;yaw=0;roll=0;flightControls.pitchInput=flightControls.rollInput=flightControls.yawInput=0;quat.identity();forward.set(0,0,-1);lockTime=0;target=null;cameraMode=0;mouseActive=false;mouseX=0;mouseY=0;gamepadWasPressed=bombWasPressed=nukeWasPressed=false;airbrake=false;hudTimer=0;cityFloor=-100;cityFloorTimer=0;weaponCueTimer=0;cameraShake=0;jet=createJet(AIRCRAFT[selected]);jet.position.set(0,free?145:430,free?550:950);scene.add(jet);if(!free){radars=[createRadar(scene,-180,-320,'RELAY ALPHA',surfaceHeight(-180,-320)),createRadar(scene,520,-760,'RELAY BRAVO',surfaceHeight(520,-760))];setRadio('Viper One, this is Echo. Two hostile relay sites are jamming the Lyon evacuation corridor. Silence them.');}else{setRadio('Free flight authorized. Weapons free. Fire a missile with or without a lock.');}
-  ui.menu.classList.add('hidden');ui.overlay.classList.add('hidden');ui.hud.classList.remove('hidden');$('mode-label').textContent=free?'FREE FLIGHT':'MISSION 01';$('mission-name').textContent=free?'LYON // FREE FLIGHT':'BREAK THE SILENCE';updateObjective();updateCamera(1);updateHud();audio.click();}
+function start(free=false){if(!renderer)return;audio.setGunFiring(false);clearSceneObjects();audio.init();audio.ctx?.resume();audio.setActive(true);mode=free?'free':'mission';paused=false;ended=false;phase=0;elapsed=0;kills=0;shots=0;missiles=free?99:8;bombAmmo=free?99:4;nuclearAmmo=free?Infinity:1;bombCooldown=0;health=100;throttle=free?.3:.68;speed=targetAirspeed(throttle,AIRCRAFT[selected].speed);pitch=0;yaw=0;roll=0;flightControls.pitchInput=flightControls.rollInput=flightControls.yawInput=0;quat.identity();forward.set(0,0,-1);lockTime=0;target=null;cameraMode=0;mouseActive=false;mouseX=0;mouseY=0;gamepadWasPressed=bombWasPressed=nukeWasPressed=false;airbrake=false;hudTimer=0;cityFloor=-100;cityFloorTimer=0;weaponCueTimer=0;cameraShake=0;radioQueue=[];storyHistory=[];jet=createJet(AIRCRAFT[selected]);jet.position.set(0,free?145:430,free?550:950);scene.add(jet);if(!free){radars=[createRadar(scene,-180,-320,'RELAY ALPHA',surfaceHeight(-180,-320)),createRadar(scene,520,-760,'RELAY BRAVO',surfaceHeight(520,-760))];enterMissionStage(0);$('radio-text').textContent='';}else{setRadio('Free flight authorized. Weapons free. Fire a missile with or without a lock.');$('stage-banner').classList.add('hidden');}
+  ui.menu.classList.add('hidden');ui.overlay.classList.add('hidden');ui.hud.classList.remove('hidden');$('mode-label').textContent=free?'FREE FLIGHT':'MISSION 01 / 04';$('mission-name').textContent=free?'LYON // FREE FLIGHT':MISSION_TITLE;updateObjective();updateCamera(1);updateHud();audio.click();}
 function hangar(){audio.setActive(false);paused=false;mode='menu';clearSceneObjects();setPreviewJet();ui.overlay.classList.add('hidden');ui.hud.classList.add('hidden');ui.menu.classList.remove('hidden');document.exitPointerLock?.();}
-function finish(win){audio.setActive(false);paused=true;ended=true;document.exitPointerLock?.();$('overlay-kicker').textContent=win?'MISSION COMPLETE':'AIRCRAFT LOST';$('overlay-title').textContent=win?'THE STRAIT IS OPEN':'SIGNAL LOST';$('overlay-text').textContent=win?'The radar net is silent and the evacuation route is clear. Echo confirms the convoy is moving.':'Echo has lost your transponder. The operation will have to be flown again.';$('overlay-stats').innerHTML=`<span>TIME ${formatTime(elapsed)}</span><span>TARGETS ${kills}</span><span>MISSILES FIRED ${shots}</span>`;$('pause-controls').classList.add('hidden');$('resume-button').classList.add('hidden');ui.overlay.classList.remove('hidden');if(win)audio.tone(460,.55,'triangle',.13,860);}
-function showPause(){if(mode==='menu'||ended)return;paused=!paused;audio.setActive(!paused);$('overlay-kicker').textContent='FLIGHT PAUSED';$('overlay-title').textContent='SYSTEMS HOLD';$('overlay-text').textContent='Flight paused. Review the controls below.';$('overlay-stats').innerHTML=`<span>TIME ${formatTime(elapsed)}</span><span>TARGETS ${kills}</span><span>HULL ${Math.ceil(health)}%</span>`;$('pause-controls').classList.remove('hidden');$('resume-button').classList.remove('hidden');ui.overlay.classList.toggle('hidden',!paused);if(paused){keys.clear();document.exitPointerLock?.();}}
+function finish(win){audio.setActive(false);paused=true;ended=true;document.exitPointerLock?.();$('overlay-kicker').textContent=win?'OPERATION COMPLETE':'AIRCRAFT LOST';$('overlay-title').textContent=win?'LYON CAN BREATHE':'SIGNAL LOST';$('overlay-text').textContent=win?'Mercy Seven is through the corridor with the evidence. Wraith is gone, but the files identify another Sable cell beyond Lyon. Viper One, the fight continues.':'Echo has lost Viper One. Mercy Seven remains trapped beneath Sable airspace. The corridor needs another attempt.';$('overlay-stats').innerHTML=`<span>TIME ${formatTime(elapsed)}</span><span>TARGETS ${kills}</span><span>MISSILES FIRED ${shots}</span>`;$('mission-log').classList.add('hidden');$('pause-controls').classList.add('hidden');$('resume-button').classList.add('hidden');ui.overlay.classList.remove('hidden');if(win)audio.tone(460,.55,'triangle',.13,860);}
+function showPause(){if(mode==='menu'||ended)return;paused=!paused;audio.setActive(!paused);$('overlay-kicker').textContent='FLIGHT PAUSED';$('overlay-title').textContent='SYSTEMS HOLD';$('overlay-text').textContent='Flight paused. Review the controls below.';$('overlay-stats').innerHTML=`<span>TIME ${formatTime(elapsed)}</span><span>TARGETS ${kills}</span><span>HULL ${Math.ceil(health)}%</span>`;$('pause-controls').classList.remove('hidden');$('resume-button').classList.remove('hidden');$('mission-log').classList.toggle('hidden',mode!=='mission'||!storyHistory.length);$('mission-log-entries').replaceChildren(...storyHistory.slice(-6).map(item=>{const row=document.createElement('p');const name=document.createElement('b');name.textContent=item.speaker+'  ';row.append(name,document.createTextNode(item.text));return row;}));ui.overlay.classList.toggle('hidden',!paused);if(paused){keys.clear();document.exitPointerLock?.();}}
 function formatTime(t){return `${String(Math.floor(t/60)).padStart(2,'0')}:${String(Math.floor(t%60)).padStart(2,'0')}`;}
 
-function updateObjective(){let title,progress;if(mode==='free'){title='FLY / EXPLORE LYON';progress=100;}else if(phase===0){title='DESTROY RELAY SITES';progress=(2-radars.filter(r=>r.alive).length)/2*100;}else if(phase===1){title='CLEAR HOSTILE AIRCRAFT';progress=(2-enemies.filter(e=>e.alive).length)/2*100;}else{title='REACH EXTRACTION';progress=0;}$('objective').textContent=title;$('objective-progress').style.width=`${progress}%`;}
-function advanceMission(){if(mode!=='mission')return;if(phase===0&&radars.every(r=>!r.alive)){phase=1;missiles=Math.max(missiles,4);const p=jet.position.clone().addScaledVector(forward,1750);enemies=[createEnemy(scene,p.x-650,Math.max(p.y+110,570),p.z-100,0),createEnemy(scene,p.x+690,Math.max(p.y+60,520),p.z-370,1)];setRadio('Relay net down. Bandits approaching from both sides. Bank toward a contact, then pull to bring it into your sight.');audio.warning();updateObjective();}else if(phase===1&&enemies.every(e=>!e.alive)){phase=2;missiles=Math.max(missiles,2);const p=jet.position.clone().addScaledVector(forward,1900).add(new THREE.Vector3(380,0,0));extraction=createExtraction(scene,p.x,p.z,jet.position.y);setRadio('Airspace clear. Turn toward the green extraction gate. The convoy is moving.');updateObjective();}}
+function updateObjective(){
+  const title=mode==='free'?'FLY / EXPLORE LYON':MISSION_STAGES[phase].objective;
+  const progress=mode==='free'?100:phase===0?(2-radars.filter(r=>r.alive).length)*50:phase<3?(2-enemies.filter(e=>e.alive).length)*50:0;
+  $('objective').textContent=title;$('objective-progress').style.width=`${progress}%`;
+  if(mode==='mission')$('mode-label').textContent=`MISSION 01 / ACT ${phase+1}`;
+}
+function advanceMission(){
+  if(mode!=='mission')return;
+  if(phase===0&&radars.every(r=>!r.alive)){
+    missiles=Math.max(missiles,6);
+    const p=jet.position.clone().addScaledVector(forward,1150);
+    enemies=[createEnemy(scene,p.x-420,Math.max(p.y+40,360),p.z-120,0,{name:'SABLE TWO'}),createEnemy(scene,p.x+460,Math.max(p.y+90,390),p.z-330,1,{name:'SABLE THREE'})];
+    enterMissionStage(1);audio.warning();
+  }else if(phase===1&&enemies.every(enemy=>!enemy.alive)){
+    missiles=Math.max(missiles,6);
+    const p=jet.position.clone().addScaledVector(forward,1350);
+    enemies=[createEnemy(scene,p.x+150,Math.max(p.y+130,410),p.z-180,2,{name:'WRAITH / SABLE ONE',ace:true,health:5,speed:104}),createEnemy(scene,p.x-420,Math.max(p.y+80,380),p.z-420,3,{name:'SABLE FOUR',modelIndex:5,health:3,speed:96})];
+    enterMissionStage(2);audio.warning();
+  }else if(phase===2&&enemies.every(enemy=>!enemy.alive)){
+    const p=jet.position.clone().addScaledVector(forward,900).add(new THREE.Vector3(180,0,0));
+    extraction=createExtraction(scene,p.x,p.z,Math.max(jet.position.y,260));
+    enterMissionStage(3);
+  }
+}
 function onTargetDestroyed(t){
   if(t.type==='car'){destroyCar(t);return;}
   t.alive=false;kills++;
@@ -105,8 +160,17 @@ function onTargetDestroyed(t){
   }else scene.remove(t.group);
   explode(t.position,1.5);audio.explosion();
   const remaining=t.type==='radar'?radars.filter(r=>r.alive).length:enemies.filter(e=>e.alive).length;
-  setRadio(t.type==='radar'?`${t.name} destroyed. ${remaining} relay site${remaining===1?'':'s'} remain${remaining===1?'s':''}.`:`${t.name} splashed. ${remaining} hostile aircraft remain${remaining===1?'s':''}.`);
+  if(t.type==='radar')setRadio(remaining?'First relay down. The second emitter is still jamming Mercy Seven.':'Both relays are down. I have the rescue channel back.','ECHO / AWACS');
+  else if(t.ace)setRadio(remaining?'Wraith is down. His wingman is all that stands between the convoy and the exit.':'Wraith is down. Mercy Seven, prepare to move.','ECHO / AWACS');
+  else if(remaining)setRadio(t.name==='SABLE FOUR'&&phase===2?'Sable Four is down. Wraith is still fighting.':`${t.name} splashed. ${remaining} bandit${remaining===1?'':'s'} still airborne.`,'ECHO / AWACS');
+  else setRadio(phase===1?'Sable pair down. Hold—Echo is tracking another high-speed contact.':'Wraith flight is finished. Mercy Seven, the sky is clear.','ECHO / AWACS');
   advanceMission();updateObjective();
+}
+function reactToEnemyHit(enemy){
+  if(!enemy.ace||enemy.health<=0)return;
+  enemy.evadeTime=enemy.health<enemy.maxHealth*.5?4.2:2.7;
+  if(!enemy.firstHitCue){enemy.firstHitCue=true;queueRadio('WRAITH / SABLE ONE','You caught me once, Viper. You will not get a second pass.');}
+  else if(enemy.health<enemy.maxHealth*.5&&!enemy.damagedCue){enemy.damagedCue=true;queueRadio('ECHO / AWACS','Wraith is losing altitude. Stay on him, Viper.');}
 }
 
 function getControls(){const gp=navigator.getGamepads?.()[0];let {pitchInput,rollInput,yawInput,throttleInput}=keyboardAxes(keys),fire=keys.has('Space')||keys.has('MouseLeft'),missile=keys.has('KeyF')||keys.has('MouseRight'),bomb=keys.has('KeyB'),nuke=keys.has('KeyN');if(mouseActive){pitchInput=clamp(pitchInput+mouseY*.7,-1,1);rollInput=clamp(rollInput-mouseX*.7,-1,1);}if(gp){const dz=a=>Math.abs(a)<.12?0:a;pitchInput=clamp(pitchInput+dz(gp.axes[1]||0),-1,1);rollInput=clamp(rollInput-dz(gp.axes[0]||0),-1,1);yawInput=clamp(yawInput+(gp.buttons[4]?.pressed?1:0)-(gp.buttons[5]?.pressed?1:0),-1,1);throttleInput=clamp(throttleInput+(gp.buttons[7]?.value||0)-(gp.buttons[6]?.value||0),-1,1);fire=fire||gp.buttons[0]?.pressed;missile=missile||gp.buttons[1]?.pressed;bomb=bomb||gp.buttons[2]?.pressed;nuke=nuke||gp.buttons[3]?.pressed;}return{pitchInput,rollInput,yawInput,throttleInput,fire,missile,bomb,nuke};}
@@ -657,6 +721,7 @@ function updateProjectiles(dt){
     if(hitTarget){
       m.mesh.position.copy(previous).addScaledVector(direction,Math.max(0,hitDistance));
       hitTarget.health-=3;
+      reactToEnemyHit(hitTarget);
       if(hitTarget.health<=0)onTargetDestroyed(hitTarget);else{explode(m.mesh.position,.45);audio.explosion();}
       m.life=0;
     }else if(obstruction<Infinity){
@@ -696,7 +761,7 @@ function updateProjectiles(dt){
     if(targetHit){
       bullet.mesh.position.copy(previous).addScaledVector(direction,targetDistance);
       if(!('health' in targetHit)){world?.traffic?.hitPerson(targetHit);emitSpark(bullet.mesh.position,2);}
-      else{targetHit.health-=targetHit.type==='car'?1:.22;if(targetHit.health<=0)onTargetDestroyed(targetHit);else emitSpark(bullet.mesh.position,3);}
+      else{targetHit.health-=targetHit.type==='car'?1:.22;reactToEnemyHit(targetHit);if(targetHit.health<=0)onTargetDestroyed(targetHit);else emitSpark(bullet.mesh.position,3);}
       bullet.life=0;
     }else if(surfaceDistance<Infinity){
       bullet.mesh.position.copy(previous).addScaledVector(direction,surfaceDistance);
@@ -939,15 +1004,17 @@ function updateEnemies(dt){
     enemy.phase+=dt*.55;
     enemy.fireTimer=Math.max(0,enemy.fireTimer-dt);
     enemy.warningCooldown=Math.max(0,enemy.warningCooldown-dt);
+    enemy.evadeTime=Math.max(0,enemy.evadeTime-dt);
     const distance=enemy.position.distanceTo(jet.position);
     if(distance>7500)continue;
-    const desired=jet.position.clone().addScaledVector(forward,240).add(new THREE.Vector3(Math.sin(enemy.phase)*340,110+Math.sin(enemy.phase*1.7)*100,Math.cos(enemy.phase)*160));
+    const evade=enemy.ace&&enemy.evadeTime>0;
+    const desired=jet.position.clone().addScaledVector(forward,evade?-260:210).add(new THREE.Vector3(Math.sin(enemy.phase)*(evade?560:320),110+Math.sin(enemy.phase*1.7)*100+(evade?120:0),Math.cos(enemy.phase)*(evade?340:190)));
     const direction=desired.sub(enemy.position).normalize();
     const turnTo=new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0,0,-1),direction);
     const oldHeading=new THREE.Vector3(0,0,-1).applyQuaternion(enemy.group.quaternion).normalize();
     const bank=clamp((oldHeading.z*direction.x-oldHeading.x*direction.z)*1.8,-.65,.65);
     turnTo.multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,0,1),bank));
-    enemy.group.quaternion.slerp(turnTo,Math.min(1,dt*1.1));
+    enemy.group.quaternion.slerp(turnTo,Math.min(1,dt*(enemy.ace?1.8:1.35)));
     animateControlSurfaces(enemy.group,{pitchInput:clamp((direction.y-oldHeading.y)*2,-1,1),rollInput:bank/.65,yawInput:clamp(bank/.65,-1,1)},dt);
     updateAfterburners(enemy.group,.96,elapsed+enemy.phase);
     const heading=new THREE.Vector3(0,0,-1).applyQuaternion(enemy.group.quaternion).normalize();
@@ -1002,12 +1069,15 @@ function updateHud(){
   if(armed)$('nuke-countdown').textContent=`SPECIAL WEAPON ARMED · ${Math.max(0,armed.fuse).toFixed(1)} S · CLEAR AREA`;
   $('flight-state').textContent=agl<35&&forward.y<-.04?'TERRAIN WARNING':airbrake?'AIR BRAKE':speed<42?'STALL WARNING':Math.abs(roll)>1.1?'HIGH BANK ANGLE':throttle>.88&&AIRCRAFT[selected].afterburner!==false?'AFTERBURNER':'FLIGHT STABLE';
   updateRadar();
+  const ace=mode==='mission'&&phase===2?enemies.find(enemy=>enemy.ace&&enemy.alive):null;
+  $('ace-status').classList.toggle('hidden',!ace);
+  if(ace)$('ace-health').style.width=`${Math.max(0,ace.health/ace.maxHealth)*100}%`;
   if(mode==='mission'){
-    const waypoint=phase===0?radars.find(r=>r.alive)?.position:phase===1?enemies.find(e=>e.alive)?.position:extraction?.position;
-    if(waypoint){const d=waypoint.clone().sub(jet.position);$('objective').textContent=(phase===0?'DESTROY RELAY SITES':phase===1?'CLEAR HOSTILE AIRCRAFT':'REACH EXTRACTION')+` · ${(d.length()/1000).toFixed(1)} KM`;}
+    const waypoint=phase===0?radars.find(r=>r.alive)?.position:phase<3?enemies.find(e=>e.alive)?.position:extraction?.position;
+    if(waypoint){const distance=waypoint.distanceTo(jet.position);$('objective').textContent=`${MISSION_STAGES[phase].objective} · ${(distance/1000).toFixed(1)} KM`;if(phase===3)$('objective-progress').style.width=`${Math.round(Math.max(0,1-distance/950)*100)}%`;}
   }
 }
-function tick(dt){elapsed+=dt;gunCooldown=Math.max(0,gunCooldown-dt);missileCooldown=Math.max(0,missileCooldown-dt);bombCooldown=Math.max(0,bombCooldown-dt);updateFlight(dt);if(paused)return;updateEnemies(dt);updateEnemyShots(dt);if(paused)return;updateProjectiles(dt);updateBombs(dt);updateNuclearEffects(dt);if(paused)return;updateWrecks(dt);updateDestruction(dt);updateCamera(dt);updateLock(dt);updateWeaponCue(dt);if(mode==='mission'&&phase===2&&extraction&&jet.position.distanceTo(extraction.position)<170)finish(true);hudTimer+=dt;if(hudTimer>.1){hudTimer=0;updateHud();}}
+function tick(dt){elapsed+=dt;gunCooldown=Math.max(0,gunCooldown-dt);missileCooldown=Math.max(0,missileCooldown-dt);bombCooldown=Math.max(0,bombCooldown-dt);updateFlight(dt);if(paused)return;updateEnemies(dt);updateEnemyShots(dt);if(paused)return;updateProjectiles(dt);updateBombs(dt);updateNuclearEffects(dt);if(paused)return;updateWrecks(dt);updateDestruction(dt);updateCamera(dt);updateLock(dt);updateWeaponCue(dt);updateStory(dt);if(mode==='mission'&&phase===3&&extraction&&jet.position.distanceTo(extraction.position)<170)finish(true);hudTimer+=dt;if(hudTimer>.1){hudTimer=0;updateHud();}}
 async function animate(){const frameMs=clock.getDelta()*1000,dt=Math.min(frameMs/1000,.05),inFlight=mode!=='menu';if(!paused)world?.update(dt,jet?.position||previewJet?.position,forward,speed,inFlight);if(mode==='menu')updateMenuCamera(dt);else if(!paused)tick(dt);blastFlash=Math.max(0,blastFlash-dt*1.35);$('blast-flash').style.opacity=String(blastFlash*.85);world?.updateTiles?.(frameMs,jet?.position.y??camera.position.y,inFlight);if(debugOutput&&performance.now()-lastDebug>1000){debugOutput.textContent=JSON.stringify({mode,position:jet?.position.toArray(),speed,quality:world?.quality});lastDebug=performance.now();}await renderer.renderAsync(scene,camera);requestAnimationFrame(animate);}
 
 window.addEventListener('resize',()=>{if(!renderer)return;camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));world?.setResolution?.();});

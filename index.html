@@ -21,12 +21,12 @@
     <div class="menu-content">
       <div class="eyebrow"><i></i> OPERATIONAL BRIEFING <span>01 / 01</span></div>
       <h1>SKYFALL<br/><em>PROTOCOL</em></h1>
-      <p class="intro">Lyon is going dark. A rogue air defense network is jamming the evacuation route through the city. You are the last aircraft in range.</p>
+      <p class="intro">At 17:00, Sable seized Lyon's evacuation frequencies and trapped Mercy Seven's relief convoy beside the Rhône. The convoy carries a flight recorder proving Sable shot down a relief plane. Viper One is the last fighter in range.</p>
       <div class="mission-card">
         <div class="card-top"><span>CAMPAIGN / MISSION 01</span><span>17:00 LOCAL · LYON</span></div>
-        <strong>BREAK THE SILENCE</strong>
-        <p>Destroy two relay sites, clear the hostile interceptors, then fly through the extraction corridor.</p>
-        <div class="card-tags"><span>◈ AIR-TO-GROUND</span><span>◇ AIR-TO-AIR</span><span>◎ EXTRACTION</span></div>
+        <strong>OPERATION NIGHTGLASS</strong>
+        <p>Four acts across one sortie: silence Sable's jammers, break an aerial ambush, face their commander Wraith, and guide Mercy Seven through the exit corridor.</p>
+        <div class="card-tags"><span>◈ 4 ACTS</span><span>◇ BANDIT ENGAGEMENTS</span><span>◎ RESCUE CORRIDOR</span></div>
       </div>
       <div class="jet-select"><div class="select-title">SELECT AIRCRAFT <span id="jet-count">01 / 07</span></div><div id="jet-options" class="jet-options"></div><div id="jet-detail" class="jet-detail"></div></div>
       <div class="menu-actions"><button id="start-mission" class="primary"><span>LAUNCH MISSION</span><b>↗</b></button><button id="start-free" class="secondary">FREE FLIGHT <span>↗</span></button></div>
@@ -41,8 +41,10 @@
   </main>
 
   <div id="hud" class="hud hidden">
-    <div class="hud-top"><div class="hud-brand"><span class="mark">S<span>///</span>P</span><span id="mission-name">BREAK THE SILENCE</span></div><div class="hud-top-right"><span id="mode-label">MISSION 01</span><span id="clock">00:00</span><button id="pause-button" aria-label="Pause">Ⅱ</button></div></div>
-    <div class="hud-left"><div class="hud-label">MISSION STATUS</div><div id="objective" class="objective"></div><div class="progress"><div id="objective-progress"></div></div><div id="radio" class="radio"></div></div>
+    <div class="hud-top"><div class="hud-brand"><span class="mark">S<span>///</span>P</span><span id="mission-name">OPERATION NIGHTGLASS</span></div><div class="hud-top-right"><span id="mode-label">MISSION 01</span><span id="clock">00:00</span><button id="pause-button" aria-label="Pause">Ⅱ</button></div></div>
+    <div class="hud-left"><div class="hud-label">MISSION STATUS</div><div id="objective" class="objective"></div><div class="progress"><div id="objective-progress"></div></div><div id="radio" class="radio"><span id="radio-speaker">ECHO / AWACS</span><span id="radio-text"></span></div></div>
+    <div id="stage-banner" class="stage-banner hidden"><small id="stage-label"></small><strong id="stage-title"></strong><span id="stage-description"></span></div>
+    <div id="ace-status" class="ace-status hidden"><small>PRIORITY TARGET / SABLE COMMANDER</small><strong>WRAITH</strong><div><i id="ace-health"></i></div></div>
     <div id="target-label" class="target-label hidden"></div>
     <div class="reticle"><div class="reticle-line h"></div><div class="reticle-line v"></div><div class="reticle-circle"></div><div class="reticle-center">+</div><div id="lock-ring" class="lock-ring"></div></div>
     <svg id="weapon-trajectory" class="weapon-trajectory" aria-hidden="true"><polyline id="weapon-path" points=""/><polyline id="bomb-path" points=""/></svg>
@@ -58,7 +60,7 @@
     <div class="hud-help">ROLL THEN PULL · S LOOP · A/D ROLL · Q/E YAW · SHIFT/CTRL THROTTLE · SPACE GUN · F MISSILE · B BOMB · N SPECIAL · G BRAKE · C VIEW</div>
   </div>
 
-  <div id="overlay" class="overlay hidden"><div class="overlay-card"><div class="eyebrow"><i></i><span id="overlay-kicker">FLIGHT PAUSED</span></div><h2 id="overlay-title">SYSTEMS HOLD</h2><p id="overlay-text">Your aircraft is holding position.</p><div id="overlay-stats" class="overlay-stats"></div><div id="pause-controls" class="pause-controls hidden"><h3>FLIGHT CONTROLS</h3><div class="control-grid"><span><b>W / ↑</b> Pitch down</span><span><b>S / ↓</b> Pitch up · hold for loop</span><span><b>A</b> Roll left · hold for full roll</span><span><b>D</b> Roll right · hold for full roll</span><span><b>Q / ←</b> Yaw left</span><span><b>E / →</b> Yaw right</span><span><b>SHIFT / CTRL</b> Throttle up / down</span><span><b>MOUSE</b> Pitch / roll</span><span><b>SPACE / LEFT CLICK</b> Cannon</span><span><b>F / RIGHT CLICK</b> Missile · free fire or lock</span><span><b>B</b> Gravity bomb</span><span><b>N</b> Nuclear bomb · 4.5 s fuse</span><span><b>G</b> Air brake · tighter turn</span><span><b>C</b> Camera view</span><span><b>M</b> Mute / unmute</span><span><b>P / ESC</b> Resume</span></div><p>Bank with A or D, then pull with S to turn. Gamepad: left stick pitch / roll · shoulders yaw · triggers throttle · A cannon · B missile · X bomb · Y special</p></div><div class="overlay-actions"><button id="resume-button" class="primary">RESUME FLIGHT <b>↗</b></button><button id="restart-button" class="secondary">RESTART <span>↗</span></button><button id="hangar-button" class="secondary">HANGAR <span>↗</span></button></div></div></div>
+  <div id="overlay" class="overlay hidden"><div class="overlay-card"><div class="eyebrow"><i></i><span id="overlay-kicker">FLIGHT PAUSED</span></div><h2 id="overlay-title">SYSTEMS HOLD</h2><p id="overlay-text">Your aircraft is holding position.</p><div id="overlay-stats" class="overlay-stats"></div><div id="mission-log" class="mission-log hidden"><h3>MISSION COMMS</h3><div id="mission-log-entries"></div></div><div id="pause-controls" class="pause-controls hidden"><h3>FLIGHT CONTROLS</h3><div class="control-grid"><span><b>W / ↑</b> Pitch down</span><span><b>S / ↓</b> Pitch up · hold for loop</span><span><b>A</b> Roll left · hold for full roll</span><span><b>D</b> Roll right · hold for full roll</span><span><b>Q / ←</b> Yaw left</span><span><b>E / →</b> Yaw right</span><span><b>SHIFT / CTRL</b> Throttle up / down</span><span><b>MOUSE</b> Pitch / roll</span><span><b>SPACE / LEFT CLICK</b> Cannon</span><span><b>F / RIGHT CLICK</b> Missile · free fire or lock</span><span><b>B</b> Gravity bomb</span><span><b>N</b> Nuclear bomb · 4.5 s fuse</span><span><b>G</b> Air brake · tighter turn</span><span><b>C</b> Camera view</span><span><b>M</b> Mute / unmute</span><span><b>P / ESC</b> Resume</span></div><p>Bank with A or D, then pull with S to turn. Gamepad: left stick pitch / roll · shoulders yaw · triggers throttle · A cannon · B missile · X bomb · Y special</p></div><div class="overlay-actions"><button id="resume-button" class="primary">RESUME FLIGHT <b>↗</b></button><button id="restart-button" class="secondary">RESTART <span>↗</span></button><button id="hangar-button" class="secondary">HANGAR <span>↗</span></button></div></div></div>
   <script type="module" src="/src/app/main.js"></script>
 </body>
 </html>

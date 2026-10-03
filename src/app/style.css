@@ -27,6 +27,24 @@
 .pause-controls h3{font:700 21px 'Barlow Condensed',sans-serif;letter-spacing:.1em;margin:0 0 12px;color:#e5f2ec}
 .control-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px 16px;color:#b4cbc6;font-size:10px}
 .control-grid b{display:inline-block;min-width:100px;color:#f0a489}
+.radio:before{display:none}
+.hud-left{width:295px}
+.hud-left .objective{font-size:23px}
+#radio-speaker{display:block;color:#efa17d;font-size:9px;letter-spacing:.12em;margin-bottom:6px}
+#radio-text{display:block}
+.stage-banner{position:absolute;top:79px;left:50%;transform:translateX(-50%);width:min(510px,calc(100vw - 600px));min-width:270px;text-align:center;padding:12px 19px 14px;background:linear-gradient(90deg,transparent,rgba(7,29,36,.79) 13%,rgba(7,29,36,.79) 87%,transparent);border-top:1px solid rgba(249,155,111,.76);border-bottom:1px solid rgba(249,155,111,.43);animation:stage-in .45s ease-out both}
+.stage-banner small{display:block;color:#f5aa85;font-size:9px;letter-spacing:.25em}
+.stage-banner strong{display:block;font:700 32px 'Barlow Condensed',sans-serif;letter-spacing:.12em;margin:3px 0 2px}
+.stage-banner span{display:block;color:#d1e4df;font-size:9px;line-height:1.5}
+.ace-status{position:absolute;top:205px;left:50%;transform:translateX(-50%);min-width:230px;text-align:center;padding:7px 12px;background:#071b23bd;border:1px solid #d78365a6}
+.ace-status small{display:block;color:#e3a187;font-size:8px;letter-spacing:.15em}
+.ace-status strong{display:block;font:700 24px 'Barlow Condensed',sans-serif;letter-spacing:.2em;margin:2px 0}
+.ace-status>div{height:3px;background:#624638}.ace-status i{display:block;height:100%;width:100%;background:#ef9069;transition:width .25s}
+.mission-log{border-top:1px solid #6b9b9466;padding:12px 0;max-height:160px;overflow:auto}
+.mission-log h3{font:700 18px 'Barlow Condensed',sans-serif;letter-spacing:.1em;margin:0 0 7px;color:#e5f2ec}
+.mission-log p{font-size:10px;line-height:1.5;color:#abc5bf;margin:5px 0}.mission-log b{color:#efa17d}
+@keyframes stage-in{from{opacity:0;transform:translate(-50%,-12px)}to{opacity:1;transform:translate(-50%,0)}}
+@media(max-width:800px){.stage-banner{top:68px;width:min(420px,calc(100vw - 24px));min-width:0}.stage-banner strong{font-size:25px}.stage-banner span{display:none}.ace-status{top:160px}}
 .pause-controls p{margin-top:14px;color:#83a59f;font-size:9px}
 @media(max-width:800px){#controls-button{left:12px;bottom:111px}.hud-help{display:none}}
 @media(max-width:520px){.control-grid{grid-template-columns:1fr}.overlay-card{padding:20px}.overlay-card h2{font-size:40px}}

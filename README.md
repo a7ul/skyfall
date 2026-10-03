@@ -2,7 +2,7 @@
 
 **A full air-combat game in your browser.** Fly modern fighter jets, take on air and ground targets, and explore a real 3D city. This first playable build gives you a story mission and free flight over Lyon.
 
-**Lyon is going dark.** A rogue air-defense network has cut the evacuation route through the city. You are Viper One, the last fighter close enough to break the signal, clear the skies, and open a way out. Choose from seven aircraft, including the F-22, F-35, F-15E, F-16, Su-57, Su-35, and A-10, and take the fight from the open sky down among the rooftops.
+**Lyon is going dark.** Sable has seized the evacuation frequencies and trapped Mercy Seven's relief convoy beside the Rhône. The convoy carries a recorder proving Sable shot down a relief plane. You are Viper One, the last fighter close enough to break the blackout and expose the commander behind it. Choose from seven aircraft, including the F-22, F-35, F-15E, F-16, Su-57, Su-35, and A-10, and take the fight from the open sky down among the rooftops.
 
 [![F-22 above Lyon, promotional artwork](docs/art/f22-over-lyon.jpg)](https://github.com/a7ul/skyfall/releases/download/assets/f22-over-lyon.png)
 
@@ -10,9 +10,16 @@
 
 ## Your sortie
 
-### Break the Silence — Mission 01
+### Operation Nightglass — Mission 01
 
-Two relay sites are jamming Lyon's evacuation corridor. Destroy both, survive the interceptors sent to stop you, and fly through the extraction gate. Echo guides you over the radio while the HUD tracks objectives and threats.
+One continuous sortie tells a four-act story through radio exchanges with Echo, Mercy Seven, Viper One, and the opposing pilots:
+
+1. **Cut the Veil:** destroy the two relay sites hiding Sable's position.
+2. **Break the Ambush:** fight the first bandit pair that crosses the Rhône.
+3. **Defeat Wraith Flight:** face Sable's commander and his wingman.
+4. **Open the Corridor:** reach the exit gate and guide Mercy Seven out with the evidence.
+
+The HUD shows each act, its objective, and the active radio speaker. Pause to review the recent mission comms. Wraith has a separate health display and changes course after taking a hit.
 
 ### Free flight
 
