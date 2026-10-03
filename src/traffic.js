@@ -146,7 +146,7 @@ export async function createTraffic(scene,url,load=fetch){
     for(const person of pedestrians){person.alive=true;person.panic=0;}
     elapsed=0;update(0,null);
   }
-  function blast(point,radius){
+  function blast(point,radius,maxVehicles=6){
     const nearby=[];
     for(const car of cars)if(car.alive&&car.position.distanceTo(point)<radius)nearby.push(car);
     for(const person of pedestrians){
@@ -155,7 +155,8 @@ export async function createTraffic(scene,url,load=fetch){
       if(distance<radius*.55)person.alive=false;
       else if(distance<radius*2.3)person.panic=Math.max(person.panic,8);
     }
-    return nearby.slice(0,6);
+    nearby.sort((a,b)=>a.position.distanceToSquared(point)-b.position.distanceToSquared(point));
+    return nearby.slice(0,maxVehicles);
   }
   function findPersonRayHit(origin,direction,maxDistance){
     let nearest=null,best=maxDistance;

@@ -106,12 +106,15 @@ export async function createLyonWorld(scene,onProgress=()=>{},renderer,camera){
       if(!originalParent)tileScene.parent=null;
     }
   }
-  function fractureCity(hit,radius=12){
+  function replayDamage(){
+    for(const tileScene of loadedScenes)pendingDamageScenes.add(tileScene);
+  }
+  function fractureCity(hit,radius=12,{replay=true}={}){
     if(!hit?.object?.isMesh)return [];
     const site={id:++damageId,point:hit.point.clone(),radius};
     damageSites.push(site);
     if(damageSites.length>120)damageSites.shift();
-    for(const tileScene of loadedScenes)pendingDamageScenes.add(tileScene);
+    if(replay)replayDamage();
     const fragments=fractureMesh(hit.object,site.point,radius,{faceIndex:hit.faceIndex});
     let applied=appliedDamage.get(hit.object);
     if(!applied){applied=new Set();appliedDamage.set(hit.object,applied);}
@@ -158,7 +161,7 @@ export async function createLyonWorld(scene,onProgress=()=>{},renderer,camera){
     }
   }
   return {
-    tiles,traffic,collisionHeight,visualHeight,raycastCity,fractureCity,ready,
+    tiles,traffic,collisionHeight,visualHeight,raycastCity,fractureCity,replayDamage,ready,
     city:{get loadedCount(){return loaded;}},
     update,updateTiles,
     get quality(){const sorted=[...frameSamples].sort((a,b)=>a-b);return {errorTarget:tiles.errorTarget,frameMs:frameAverage,p95FrameMs:sorted[Math.floor(sorted.length*.95)]??0,cacheMB:Math.round(tiles.lruCache.cachedBytes/1048576),cacheLimitMB:Math.round(tiles.lruCache.maxBytesSize/1048576),deviceMemoryGB:navigator.deviceMemory??null,...tiles.stats};},

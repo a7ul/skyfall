@@ -117,7 +117,7 @@ export class FlightAudio {
 
   play(name, gain, options = {}) {
     if (!this.ctx || !this.buffers[name]) return;
-    const now = this.ctx.currentTime;
+    const now = this.ctx.currentTime + (options.delay || 0);
     const source = this.ctx.createBufferSource();
     source.buffer = this.buffers[name];
     source.playbackRate.value = options.rate || 1;
@@ -191,6 +191,12 @@ export class FlightAudio {
     const rate = .94 + Math.random() * .1;
     this.play('ignition', 2.3, {rate});
     this.play('missile', 2.9, {rate});
+  }
+  drop() { this.tone(270, .11, 'triangle', .055, 130); }
+  nuclear(distance=0) {
+    const delay=Math.min(1.5,distance/340);
+    this.play('explosion', .72, {offset: 12.15, duration: 5.8, rate: .62, delay});
+    this.play('explosion', .48, {offset: 8, duration: 3.5, rate: .86, delay:delay+.08});
   }
   gun() { this.play('cannon', .22, {duration: .17, rate: .94 + Math.random() * .12}); }
   explosion() {

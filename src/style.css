@@ -12,6 +12,14 @@
 .overlay-card{width:min(660px,94vw);max-height:94vh;overflow-y:auto;padding:28px}
 .weapon-trajectory{position:absolute;inset:0;width:100%;height:100%;overflow:visible;filter:drop-shadow(0 0 5px #71f4dd88)}.weapon-trajectory polyline{fill:none;stroke:#9bead4;stroke-width:1.5;stroke-dasharray:8 7;opacity:.8}.weapon-pipper{position:absolute;width:26px;height:26px;margin:-13px 0 0 -13px;border:1px solid #f5b07b;transform:rotate(45deg);box-shadow:0 0 10px #ff986277}.weapon-pipper i{display:block;position:absolute;inset:7px;border:1px solid #f5b07b}.weapon-state{position:absolute;left:50%;top:calc(50% + 52px);transform:translateX(-50%);padding:3px 7px;background:#0a292c99;color:#a6d9cf;border:1px solid #78c7b77a;font-size:9px;letter-spacing:.14em;white-space:nowrap}.weapon-state.locked{color:#ffc18d;border-color:#e9955c}
 .weapon-trajectory.locked polyline{stroke:#ffc18d;stroke-dasharray:none;stroke-width:2}
+.blast-flash{position:fixed;inset:0;z-index:2;pointer-events:none;background:radial-gradient(circle at 50% 58%,#fffef1,#ffe7a8 46%,#d18a54);opacity:0;mix-blend-mode:screen}
+.bomb-pipper{position:absolute;width:24px;height:24px;margin:-12px 0 0 -12px;border:1px solid #ffcf82;border-radius:50%;box-shadow:0 0 13px #ffb954aa;color:#ffe1a0}
+.bomb-pipper:before,.bomb-pipper:after{content:'';position:absolute;background:#ffcf82}.bomb-pipper:before{width:1px;height:34px;left:11px;top:-6px}.bomb-pipper:after{height:1px;width:34px;left:-6px;top:11px}
+.bomb-pipper i{position:absolute;inset:8px;border:1px solid #ffcf82;border-radius:50%}
+.bomb-pipper span{position:absolute;top:29px;left:50%;transform:translateX(-50%);white-space:nowrap;font-size:9px;letter-spacing:.1em;background:#1a282bd9;padding:3px 5px}
+.nuke-countdown{position:absolute;top:14%;left:50%;transform:translateX(-50%);padding:9px 14px;border:1px solid #ffc387;background:#38251bd9;color:#ffe3b6;font:700 17px 'Barlow Condensed',sans-serif;letter-spacing:.16em;box-shadow:0 0 24px #ff985955}
+.overlay-card{max-height:92vh;overflow:auto}
+@media(max-width:520px){.weapons>div:last-child{display:none}.nuke-countdown{font-size:13px;white-space:nowrap}}
 .overlay-card h2{margin:12px 0 7px;font-size:46px}
 .overlay-stats{margin:15px 0}
 .pause-controls{padding:15px 0 17px;border-top:1px solid #6b9b9466;margin-bottom:12px}
