@@ -14,6 +14,7 @@ export const AIRCRAFT = [
 
 const templates=new Map();
 const loader=new GLTFLoader();
+const textureLoader=new THREE.TextureLoader();
 let exhaustTextures;
 
 function plumeTexture(core=false){
@@ -23,17 +24,18 @@ function plumeTexture(core=false){
   const clamp=(value,min=0,max=1)=>Math.max(min,Math.min(max,value));
   for(let y=0;y<canvas.height;y++){
     const distance=1-y/(canvas.height-1);
-    const envelope=Math.pow(1-distance,1.42)*clamp(distance*12+.42);
-    const cell=Math.exp(-Math.pow((distance-.22)/.075,2))+.7*Math.exp(-Math.pow((distance-.53)/.085,2));
-    const hot=Math.exp(-Math.pow(distance/.19,2));
+    const envelope=Math.pow(1-distance,1.65)*clamp(distance*14+.55);
+    const cell=Math.exp(-Math.pow((distance-.23)/.075,2))+.76*Math.exp(-Math.pow((distance-.53)/.09,2));
+    const hot=Math.exp(-Math.pow(distance/.145,2));
     for(let x=0;x<canvas.width;x++){
       const around=x/(canvas.width-1)*Math.PI*2;
-      const ripple=.68+.17*Math.sin(around*7+distance*43)+.11*Math.sin(around*13-distance*81)+.07*Math.sin(around*23+distance*163);
-      const alpha=clamp(envelope*ripple*(core?.12+.95*cell+.45*hot:.14));
+      const ripple=.72+.16*Math.sin(around*7+distance*47)+.1*Math.sin(around*13-distance*89)+.08*Math.sin(around*23+distance*171);
+      const alpha=clamp(envelope*ripple*(core?.12+.94*cell+.8*hot:.29+.12*cell));
+      const warmth=clamp(hot*.95+cell*.75);
       const offset=(y*canvas.width+x)*4;
-      image.data[offset]=core?255:104;
-      image.data[offset+1]=core?Math.round(218+25*cell-37*hot):166;
-      image.data[offset+2]=core?Math.round(175+60*cell-69*hot):236;
+      image.data[offset]=core?Math.round(173+82*warmth):139;
+      image.data[offset+1]=core?Math.round(169+71*warmth):164;
+      image.data[offset+2]=core?Math.round(250-101*warmth):248;
       image.data[offset+3]=Math.round(alpha*255);
     }
   }
@@ -43,16 +45,30 @@ function plumeTexture(core=false){
   return texture;
 }
 
-function plumeGeometry(length,radius,shock=false){
+function throatTexture(){
+  const canvas=document.createElement('canvas');canvas.width=canvas.height=128;
+  const context=canvas.getContext('2d');
+  const glow=context.createRadialGradient(64,64,2,64,64,63);
+  glow.addColorStop(0,'rgba(255,246,211,.88)');
+  glow.addColorStop(.3,'rgba(255,213,154,.75)');
+  glow.addColorStop(.65,'rgba(255,135,69,.24)');
+  glow.addColorStop(1,'rgba(255,110,50,0)');
+  context.fillStyle=glow;context.fillRect(0,0,128,128);
+  const texture=new THREE.CanvasTexture(canvas);texture.colorSpace=THREE.SRGBColorSpace;
+  return texture;
+}
+
+function plumeGeometry(length,radius,profile='outer'){
   const radial=24,axial=36,positions=[],uvs=[],indices=[];
   for(let row=0;row<=axial;row++){
     const t=row/axial;
-    const bulge=shock ? .16*Math.exp(-Math.pow((t-.22)/.09,2))+.1*Math.exp(-Math.pow((t-.53)/.1,2)) : 0;
-    const taper=1-.22*t-.7*t*t+bulge;
+    const first=Math.exp(-Math.pow((t-.23)/.1,2));
+    const second=Math.exp(-Math.pow((t-.53)/.12,2));
+    const shape=profile==='core' ? .67+.7*first+.49*second-.34*t : 1+.52*Math.sin(Math.PI*t)+.1*t;
     for(let column=0;column<=radial;column++){
       const angle=column/radial*Math.PI*2;
-      const wobble=1+.09*Math.sin(t*32+angle*5)+.035*Math.sin(t*77-angle*11);
-      const r=radius*taper*wobble;
+      const wobble=1+.085*Math.sin(t*31+angle*5)+.045*Math.sin(t*73-angle*11);
+      const r=radius*shape*wobble;
       positions.push(Math.cos(angle)*r,Math.sin(angle)*r,length*t);
       uvs.push(column/radial,t);
       if(row<axial&&column<radial){
@@ -69,10 +85,10 @@ function plumeGeometry(length,radius,shock=false){
 }
 
 function heatMaterial(map){
-  const material=new MeshBasicNodeMaterial({transparent:true,depthWrite:false,side:THREE.FrontSide,opacity:.28});
+  const material=new MeshBasicNodeMaterial({transparent:true,depthWrite:false,side:THREE.FrontSide,opacity:.11});
   const mask=texture(map,uv()).a;
   const flow=uv().y.mul(52).sub(time.mul(31));
-  const strength=mask.mul(.009);
+  const strength=mask.mul(.005);
   const offset=vec2(sin(flow.add(uv().x.mul(23))).mul(strength),sin(flow.mul(.71)).mul(strength.mul(.5)));
   // A shared viewport sample bends the city and sky behind the exhaust.
   material.colorNode=viewportSharedTexture(viewportSafeUV(screenUV.add(offset))).rgb;
@@ -81,24 +97,25 @@ function heatMaterial(map){
 }
 
 function makeExhausts(spec){
-  exhaustTextures??={outer:plumeTexture(),core:plumeTexture(true)};
   const exhausts=new THREE.Group();
   for(const [x,y,z,radius] of spec.nozzles){
     const plume=new THREE.Group();
     plume.position.set(x,y,z);
-    const liner=new THREE.Mesh(new THREE.CylinderGeometry(radius*.89,radius*.89,.25,24,1,true),new THREE.MeshBasicMaterial({color:0xc36b35,transparent:true,opacity:.1,depthWrite:false,side:THREE.DoubleSide}));
+    const liner=new THREE.Mesh(new THREE.CylinderGeometry(radius*.89,radius*.89,.25,24,1,true),new THREE.MeshBasicMaterial({color:0xd4783e,transparent:true,opacity:.2,depthWrite:false,side:THREE.DoubleSide}));
     liner.geometry.rotateX(Math.PI/2);liner.position.z=-.1;liner.userData.effect='liner';plume.add(liner);
+    const throat=new THREE.Mesh(new THREE.CircleGeometry(radius*.78,32),new THREE.MeshBasicMaterial({map:exhaustTextures.throat,transparent:true,opacity:.62,depthWrite:false,blending:THREE.AdditiveBlending,side:THREE.DoubleSide}));
+    throat.position.z=-.16;throat.userData.effect='throat';plume.add(throat);
     for(const [effect,length,baseRadius,opacity,map] of [
-      ['sheath',3.7,radius*.87,.7,exhaustTextures.outer],
-      ['core',2.75,radius*.47,.96,exhaustTextures.core]
+      ['sheath',4.1,radius*.78,.27,exhaustTextures.outer],
+      ['core',3.05,radius*.64,.3,exhaustTextures.core]
     ]){
-      const mesh=new THREE.Mesh(plumeGeometry(length,baseRadius,effect==='core'),new THREE.MeshBasicMaterial({map,transparent:true,opacity,depthWrite:false,blending:effect==='core'?THREE.AdditiveBlending:THREE.NormalBlending,side:THREE.DoubleSide}));
+      const mesh=new THREE.Mesh(plumeGeometry(length,baseRadius,effect),new THREE.MeshBasicMaterial({map,color:effect==='sheath'?0x9ebfff:0xffffff,transparent:true,opacity,depthWrite:false,blending:effect==='core'?THREE.AdditiveBlending:THREE.NormalBlending,side:THREE.DoubleSide}));
       mesh.userData.baseOpacity=opacity;
       mesh.userData.effect=effect;
       plume.add(mesh);
     }
-    const heat=new THREE.Mesh(plumeGeometry(4.1,radius*1.16),heatMaterial(exhaustTextures.outer));
-    heat.userData.effect='heat';heat.userData.baseOpacity=.28;plume.add(heat);
+    const heat=new THREE.Mesh(plumeGeometry(5.1,radius*1.18),heatMaterial(exhaustTextures.outer));
+    heat.userData.effect='heat';heat.userData.baseOpacity=.11;plume.add(heat);
     exhausts.add(plume);
   }
   exhausts.visible=false;
@@ -136,7 +153,16 @@ async function loadOne(spec){
   templates.set(spec.id,root);
 }
 
-export async function loadJetModels(){await Promise.all(AIRCRAFT.map(loadOne));}
+export async function loadJetModels(){
+  let outer;
+  try{
+    outer=await textureLoader.loadAsync(`${import.meta.env.BASE_URL}assets/effects/afterburner-plasma.png`);
+    outer.colorSpace=THREE.SRGBColorSpace;
+    outer.anisotropy=4;
+  }catch(error){console.warn('Afterburner texture unavailable; using procedural fallback',error);outer=plumeTexture();}
+  exhaustTextures={outer,core:plumeTexture(true),throat:throatTexture()};
+  await Promise.all(AIRCRAFT.map(loadOne));
+}
 
 export function createJet(spec,scale=1){
   const template=templates.get(spec.id);
@@ -162,7 +188,8 @@ export function updateAfterburners(jet,throttle,time,airbrake=false){
       for(const mesh of plume.children){
         const effect=mesh.userData.effect;
         const pulse=1+.045*Math.sin(time*(effect==='core'?53:31)+index*2.7);
-        if(effect==='liner')mesh.material.opacity=(.04+.08*power)*pulse;
+        if(effect==='liner')mesh.material.opacity=(.06+.17*power)*pulse;
+        else if(effect==='throat')mesh.material.opacity=(.16+.46*power)*pulse;
         else{mesh.material.opacity=mesh.userData.baseOpacity*power*pulse;mesh.rotation.z=.11*Math.sin(time*(effect==='core'?6.7:4.3)+index);}
       }
     }

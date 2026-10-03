@@ -1,2 +1,4 @@
 *.glb filter=lfs diff=lfs merge=lfs -text
 *.hdr filter=lfs diff=lfs merge=lfs -text
+public/assets/effects/afterburner-plasma.png filter=lfs diff=lfs merge=lfs -text
+docs/art/afterburner-reference.png filter=lfs diff=lfs merge=lfs -text
