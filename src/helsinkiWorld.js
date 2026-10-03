@@ -6,7 +6,7 @@ import {createTraffic} from './traffic.js';
 const ASSET='/assets/helsinki/';
 export function helsinkiTerrainHeight(x,z){return Math.abs(x)>1000||Math.abs(z)>1000?0:8;}
 
-export async function createHelsinkiWorld(scene,onProgress=()=>{}){
+export async function createHelsinkiWorld(scene,onProgress=()=>{},renderer){
   const textureLoader=new THREE.TextureLoader();
   const [manifest,sky,lighting,oceanNormal]=await Promise.all([
     fetch(ASSET+'manifest.json').then(r=>{if(!r.ok)throw new Error('Helsinki mesh manifest missing');return r.json();}),
@@ -25,7 +25,7 @@ export async function createHelsinkiWorld(scene,onProgress=()=>{}){
   sea.rotation.x=-Math.PI/2;sea.position.y=-.5;scene.add(sea);
   const traffic=await createTraffic(scene);
   const loader=new GLTFLoader();
-  const loaded=new Map(),pending=new Set();
+  const loaded=new Map(),pending=new Set(),ready=[];
   let nextCheck=0;
 
   function prepareMesh(group,depthBias){
@@ -35,10 +35,10 @@ export async function createHelsinkiWorld(scene,onProgress=()=>{}){
       const materials=Array.isArray(object.material)?object.material:[object.material];
       object.material=materials.map(source=>{
         const material=source.map
-          ? new THREE.MeshBasicMaterial({map:source.map,side:THREE.DoubleSide})
+          ? new THREE.MeshBasicMaterial({map:source.map.clone(),side:THREE.DoubleSide})
           : new THREE.MeshBasicMaterial({color:source.color??0x777777,side:THREE.DoubleSide});
 
-        material.map&&(material.map.anisotropy=4);
+        if(material.map){material.map.anisotropy=4;material.map.needsUpdate=true;}
         source.dispose();
         return material;
       });
@@ -73,50 +73,63 @@ export async function createHelsinkiWorld(scene,onProgress=()=>{}){
     onProgress(overview.length,overviewTiles.length);
   }
 
-  async function loadTile(tile,detail){
+  function applyTile(tile,detail,group){
+    const key=tile.file,previous=loaded.get(key);
+    group.traverse(object=>{
+      if(!object.isMesh)return;
+      for(const material of (Array.isArray(object.material)?object.material:[object.material])){
+        if(material.map)renderer?.initTexture(material.map);
+      }
+    });
+    if(previous)disposeTile(previous.group);
+    scene.add(group);loaded.set(key,{group,detail});
+  }
+  async function loadTile(tile,detail,immediate=false){
     const key=tile.file;
     if(pending.has(key))return;
     pending.add(key);
     try{
       const group=await loadMesh(detail?tile.detail:tile.file,detail?-3:-2);
-      const previous=loaded.get(key);
-      if(previous)disposeTile(previous.group);
-      scene.add(group);loaded.set(key,{group,detail});
+      if(immediate)applyTile(tile,detail,group);
+      else ready.push({tile,detail,group});
     }catch(error){console.warn('Helsinki mesh tile failed',tile.file,error);}finally{pending.delete(key);}
   }
   async function warmup(position,onWarmup=()=>{}){
-    const nearby=[...manifest.tiles]
-      .sort((a,b)=>Math.hypot(a.x-position.x,a.z-position.z)-Math.hypot(b.x-position.x,b.z-position.z))
-      .slice(0,16);
+    const nearby=manifest.tiles
+      .filter(tile=>Math.hypot(tile.x-position.x,tile.z-position.z)<=2000)
+      .sort((a,b)=>Math.hypot(a.x-position.x,a.z-position.z)-Math.hypot(b.x-position.x,b.z-position.z));
     for(let i=0;i<nearby.length;i++){
       const tile=nearby[i];
-      const distance=Math.hypot(tile.x-position.x,tile.z-position.z);
-      await loadTile(tile,!!tile.detail&&distance<400);
+      await loadTile(tile,!!tile.detail,true);
       onWarmup(i+1,nearby.length);
     }
   }
-  function update(dt,position){
+  function update(dt,position,direction){
+    // GLTF decoding is asynchronous. Attach and retire render resources only
+    // between renderAsync calls, never from a loader callback mid-frame.
+    for(const item of ready.splice(0))applyTile(item.tile,item.detail,item.group);
     oceanNormal.offset.x=(oceanNormal.offset.x+dt*.0017)%1;
     oceanNormal.offset.y=(oceanNormal.offset.y+dt*.0011)%1;
     if(!position)return;
     traffic.update(dt,position);
     nextCheck-=dt;if(nextCheck>0)return;nextCheck=.12;
-    const nearRadius=position.y>850?950:1350;
+    const mediumRadius=position.y>850?2000:3000;
     const candidates=[];
     for(const tile of manifest.tiles){
       const distance=Math.hypot(tile.x-position.x,tile.z-position.z);
       const existing=loaded.get(tile.file);
-      if(distance>1750){
+      if(distance>mediumRadius+350){
         if(existing){disposeTile(existing.group);loaded.delete(tile.file);}
         continue;
       }
-      if(distance>nearRadius)continue;
-      const wantsDetail=!!tile.detail&&distance<(existing?.detail?600:450)&&position.y<(existing?.detail?700:550);
+      if(distance>mediumRadius)continue;
+      const wantsDetail=!!tile.detail&&distance<(existing?.detail?2200:2000)&&position.y<(existing?.detail?1050:850);
       if(existing?.detail===wantsDetail||pending.has(tile.file))continue;
-      candidates.push({tile,distance,wantsDetail});
+      const ahead=direction?Math.max(0,(tile.x-position.x)*direction.x+(tile.z-position.z)*direction.z):0;
+      candidates.push({tile,distance,wantsDetail,priority:distance-ahead*.35-(wantsDetail?350:0)});
     }
     if(pending.size>=2||!candidates.length)return;
-    candidates.sort((a,b)=>a.distance-b.distance);
+    candidates.sort((a,b)=>a.priority-b.priority);
     for(const {tile,wantsDetail} of candidates.slice(0,2-pending.size))loadTile(tile,wantsDetail);
   }
   return {sea,city:{get loadedCount(){return overview.length+loaded.size;}},update,warmup};

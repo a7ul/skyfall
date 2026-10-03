@@ -117,8 +117,8 @@ function streamCity(scene,manifest,ortho){
   return {update,get loadedCount(){return loaded.size;},get buildingCount(){return [...loaded.values()].reduce((total,chunk)=>total+chunk.buildings,0);}};
 }
 
-export async function createWorld(scene,onProgress){
-  if(helsinkiMode)return createHelsinkiWorld(scene,onProgress);
+export async function createWorld(scene,onProgress,renderer){
+  if(helsinkiMode)return createHelsinkiWorld(scene,onProgress,renderer);
   const loader=new THREE.TextureLoader();
   const [sky,lighting,oceanNormal,ortho,heightBuffer,cityManifest]=await Promise.all([
     loader.loadAsync('/assets/sky.webp'),new HDRLoader().loadAsync('/assets/sky-lighting.hdr'),loader.loadAsync('/assets/ocean-normal.png'),loader.loadAsync('/assets/new-york-ortho.webp'),fetch('/assets/new-york-elevation.bin').then(r=>r.arrayBuffer()),fetch('/assets/city/manifest.json').then(r=>r.json())
