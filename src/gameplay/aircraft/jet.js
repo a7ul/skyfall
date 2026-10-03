@@ -9,7 +9,7 @@ export const AIRCRAFT = [
   {id:'f22', label:'F-22 RAPTOR', role:'STEALTH AIR SUPERIORITY', origin:'USAF · TWIN ENGINE', speed:1.08, turn:1.0, model:'f-22.glb', length:14.4, nozzles:[[-1.12,-.79,5.42,.33],[1.12,-.79,5.42,.33]]},
   {id:'f35', label:'F-35 LIGHTNING II', role:'MULTIROLE STRIKE', origin:'USAF · SINGLE ENGINE', speed:.98, turn:1.06, model:'f-35.glb', length:12.8, nozzles:[[0,-.62,5.1,.36]]},
   {id:'su57', label:'SU-57 FELON', role:'HIGH AGILITY INTERCEPTOR', origin:'VKS · TWIN ENGINE', speed:1.13, turn:1.14, model:'su-57.glb', length:15.1, nozzles:[[-1.19,.04,6.1,.34],[1.19,.04,6.1,.34]]},
-  {id:'su35', label:'SU-35 FLANKER-E', role:'LONG RANGE MULTIROLE', origin:'VKS · TWIN ENGINE', speed:1.02, turn:1.10, model:'su-35.glb', length:16.1, nozzles:[[-1.02,-1.06,6.53,.33],[1.02,-1.06,6.53,.33]]}
+  {id:'su35', label:'SU-35 FLANKER-E', role:'LONG RANGE MULTIROLE', origin:'VKS · TWIN ENGINE', speed:1.02, turn:1.10, model:'su-35.glb', length:16.1, exhaustToeIn:.035, nozzles:[[-1.02,-1.06,6.53,.33],[1.02,-1.06,6.53,.33]]}
 ];
 
 const templates=new Map();
@@ -64,7 +64,7 @@ function plumeGeometry(length,radius,profile='outer'){
     const t=row/axial;
     const first=Math.exp(-Math.pow((t-.23)/.1,2));
     const second=Math.exp(-Math.pow((t-.53)/.12,2));
-    const shape=profile==='core' ? .67+.7*first+.49*second-.34*t : 1+.52*Math.sin(Math.PI*t)+.1*t;
+    const shape=profile==='core' ? .67+.7*first+.49*second-.34*t : 1+.23*Math.sin(Math.PI*t)-.22*t;
     for(let column=0;column<=radial;column++){
       const angle=column/radial*Math.PI*2;
       const wobble=1+.085*Math.sin(t*31+angle*5)+.045*Math.sin(t*73-angle*11);
@@ -101,6 +101,7 @@ function makeExhausts(spec){
   for(const [x,y,z,radius] of spec.nozzles){
     const plume=new THREE.Group();
     plume.position.set(x,y,z);
+    plume.rotation.y=-Math.sign(x)*(spec.exhaustToeIn||0);
     const liner=new THREE.Mesh(new THREE.CylinderGeometry(radius*.89,radius*.89,.25,24,1,true),new THREE.MeshBasicMaterial({color:0xd4783e,transparent:true,opacity:.2,depthWrite:false,side:THREE.DoubleSide}));
     liner.geometry.rotateX(Math.PI/2);liner.position.z=-.1;liner.userData.effect='liner';plume.add(liner);
     const throat=new THREE.Mesh(new THREE.CircleGeometry(radius*.78,32),new THREE.MeshBasicMaterial({map:exhaustTextures.throat,transparent:true,opacity:.62,depthWrite:false,blending:THREE.AdditiveBlending,side:THREE.DoubleSide}));
