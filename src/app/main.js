@@ -174,6 +174,7 @@ function openMapDialog(){
 function closeMapDialog(){if(mapLoading)return;$('map-dialog').classList.add('hidden');$('map-choice').focus({preventScroll:true});}
 async function prepareMap(directory){
   if(mapLoading||launchEnabled)return;
+  const startedAt=performance.now();
   mapLoading=true;
   $('map-select').disabled=true;
   $('map-folder-error').classList.add('hidden');
@@ -188,6 +189,7 @@ async function prepareMap(directory){
     const missingParts=expectedMapParts.filter(part=>!files.some(file=>file.name===part));
     if(missingParts.length)throw new Error(`Download every Lyon map part into this folder. Missing: ${missingParts.join(', ')}`);
     opened=await openMapArchives(files);
+    const indexedAt=performance.now();
     setMapStatus(`${opened.tileCount.toLocaleString()} tiles found. Building the city preview…`);
     const liveSource={coverage:opened.coverage,fetchData:(url,options)=>(source||opened).fetchData(url,options)};
     worldPromise=createWorld(scene,(done)=>{
@@ -199,10 +201,17 @@ async function prepareMap(directory){
       $('map-progress').setAttribute('aria-valuenow',String(percent));$('map-progress-bar').style.width=`${percent}%`;
       setMapStatus(reused?`Prepared map found · ${previewTiles} preview tiles loaded`:`Unpacking Lyon map · ${done.toLocaleString()} / ${total.toLocaleString()} files · ${previewTiles} preview tiles`);
     });
+    const extractedAt=performance.now();
     const created=await worldPromise;
     if(worldError)throw worldError;
     setMapStatus(`Loading starting area · ${previewTiles} tiles`);
     await world.ready;
+    console.info('Lyon map preparation timing (ms)',{
+      zipIndex:Math.round(indexedAt-startedAt),
+      extraction:Math.round(extractedAt-indexedAt),
+      startingArea:Math.round(performance.now()-extractedAt),
+      total:Math.round(performance.now()-startedAt)
+    });
     await opened.close();opened=null;
     $('map-progress').setAttribute('aria-valuenow','100');$('map-progress-bar').style.width='100%';
     $('map-progress').classList.add('hidden');
@@ -221,11 +230,12 @@ async function prepareMap(directory){
     console.error('Could not open Lyon map:',error);
     if(worldPromise)await worldPromise;
     world?.dispose();world=null;
-    if(opened)await opened.close();
+    if(opened)try{await opened.close();}catch(closeError){console.warn('Could not close Lyon ZIP readers:',closeError);}
     ui.menu.classList.remove('map-building');$('map-dialog').classList.remove('building');
     $('map-progress').classList.add('hidden');
-    setMapStatus(error.message||'Could not prepare the map folder.','error');
-    $('map-folder-error').textContent=error.message||'Could not prepare the map folder.';
+    const message=error?.message||'Could not prepare the map folder. Choose the same folder to resume.';
+    setMapStatus(message,'error');
+    $('map-folder-error').textContent=message;
     $('map-folder-error').classList.remove('hidden');
     showMapStep('folder');
     ui.gpu.textContent='MAP SETUP FAILED · CHOOSE THE LYON MAP FOLDER';
@@ -1200,7 +1210,7 @@ function updateMenuCamera(dt){
   updateAfterburners(previewJet,.68,t*140);
   // Show a restrained rear three-quarter view against the city horizon.
   // The old steep camera angle made the aircraft look pasted onto the map.
-  previewJet.rotation.y=-.34+Math.sin(t)*.035;
+  previewJet.rotation.y=.12+Math.sin(t)*.025;
   previewJet.rotation.z=-.025+Math.sin(t*1.4)*.012;
   camera.position.set(80+Math.sin(t)*5,220,530);
   camera.up.set(0,1,0);camera.lookAt(-20,120,30);
@@ -1268,18 +1278,22 @@ function updateHud(){
   }
 }
 function tick(dt){elapsed+=dt;gunCooldown=Math.max(0,gunCooldown-dt);missileCooldown=Math.max(0,missileCooldown-dt);bombCooldown=Math.max(0,bombCooldown-dt);updateFlight(dt);if(paused)return;updateEnemies(dt);updateEnemyShots(dt);if(paused)return;updateProjectiles(dt);updateBombs(dt);updateNuclearEffects(dt);if(paused)return;updateWrecks(dt);updateDestruction(dt);updateCamera(dt);updateEnemyIndicators();updateLock(dt);updateWeaponCue(dt);updateStory(dt);if(mode==='mission'&&phase===3&&extraction&&jet.position.distanceTo(extraction.position)<170)finish(true);hudTimer+=dt;if(hudTimer>.1){hudTimer=0;updateHud();}}
-async function animate(){const frameMs=clock.getDelta()*1000,dt=Math.min(frameMs/1000,.05),inFlight=mode!=='menu';if(!paused)world?.update(dt,jet?.position||previewJet?.position,forward,speed,inFlight);if(mode==='menu')updateMenuCamera(dt);else if(!paused)tick(dt);blastFlash=Math.max(0,blastFlash-dt*1.35);$('blast-flash').style.opacity=String(blastFlash*.85);world?.updateTiles?.(frameMs,jet?.position.y??camera.position.y,inFlight);if(debugOutput&&performance.now()-lastDebug>1000){debugOutput.textContent=JSON.stringify({mode,position:jet?.position.toArray(),speed,quality:world?.quality});lastDebug=performance.now();}await renderer.renderAsync(scene,camera);requestAnimationFrame(animate);}
+async function animate(){const frameMs=clock.getDelta()*1000,dt=Math.min(frameMs/1000,.05),inFlight=mode!=='menu';if(!paused)world?.update(dt,jet?.position||previewJet?.position,forward,speed,inFlight,flightVelocity);if(mode==='menu')updateMenuCamera(dt);else if(!paused)tick(dt);blastFlash=Math.max(0,blastFlash-dt*1.35);$('blast-flash').style.opacity=String(blastFlash*.85);world?.updateTiles?.(frameMs,jet?.position.y??camera.position.y,inFlight);if(debugOutput&&performance.now()-lastDebug>1000){debugOutput.textContent=JSON.stringify({mode,position:jet?.position.toArray(),speed,quality:world?.quality});lastDebug=performance.now();}await renderer.renderAsync(scene,camera);requestAnimationFrame(animate);}
 
-window.addEventListener('resize',()=>{menuPreviewDirty=true;if(!renderer)return;camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));world?.setResolution?.();});
+function resizeGame(){menuPreviewDirty=true;if(!renderer)return;camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));world?.setResolution?.();}
+function enterFullscreen(){if(document.fullscreenElement)return;document.documentElement.requestFullscreen?.().catch(error=>console.warn('Could not enter fullscreen mode:',error));}
+function toggleFullscreen(){if(!document.fullscreenElement){enterFullscreen();return;}document.exitFullscreen?.().catch(error=>console.warn('Could not exit fullscreen mode:',error));}
+window.addEventListener('resize',resizeGame);
+document.addEventListener('fullscreenchange',resizeGame);
 ui.menu.addEventListener('scroll',()=>{menuPreviewDirty=true;},{passive:true});
-window.addEventListener('keydown',e=>{if(['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code))e.preventDefault();keys.add(e.code);if(e.repeat)return;if((e.code==='Escape'||e.code==='KeyP')&&mode!=='menu')showPause();if(e.code==='KeyC'&&mode!=='menu'&&!paused){cameraMode=(cameraMode+1)%3;audio.click();}if(e.code==='KeyG'&&mode!=='menu'&&!paused)audio.click();if(e.code==='KeyF'&&mode!=='menu'&&!paused)fireMissile();if(e.code==='KeyB'&&mode!=='menu'&&!paused)dropBomb(false);if(e.code==='KeyN'&&mode!=='menu'&&!paused)dropBomb(true);if(e.code==='KeyM'){const value=audio.toggleMute();ui.volume.value=String(Math.round(value*100));ui.volumeValue.textContent=`${Math.round(value*100)}%`;}});
+window.addEventListener('keydown',e=>{if(e.code==='F11'||e.altKey&&e.code==='Enter'){e.preventDefault();if(!e.repeat)toggleFullscreen();return;}if(['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code))e.preventDefault();keys.add(e.code);if(e.repeat)return;if((e.code==='Escape'||e.code==='KeyP')&&mode!=='menu')showPause();if(e.code==='KeyC'&&mode!=='menu'&&!paused){cameraMode=(cameraMode+1)%3;audio.click();}if(e.code==='KeyG'&&mode!=='menu'&&!paused)audio.click();if(e.code==='KeyF'&&mode!=='menu'&&!paused)fireMissile();if(e.code==='KeyB'&&mode!=='menu'&&!paused)dropBomb(false);if(e.code==='KeyN'&&mode!=='menu'&&!paused)dropBomb(true);if(e.code==='KeyM'){const value=audio.toggleMute();ui.volume.value=String(Math.round(value*100));ui.volumeValue.textContent=`${Math.round(value*100)}%`;}});
 window.addEventListener('keyup',e=>keys.delete(e.code));window.addEventListener('blur',()=>{keys.clear();if(mode!=='menu'&&!paused)showPause();});
 window.addEventListener('mousemove',e=>{if(document.pointerLockElement===renderer?.domElement){mouseActive=true;mouseX=clamp(mouseX+e.movementX/260,-1,1);mouseY=clamp(mouseY+e.movementY/260,-1,1);}});
 window.addEventListener('pointerlockchange',()=>{if(document.pointerLockElement!==renderer?.domElement){mouseActive=false;mouseX=0;mouseY=0;}});
 $('game').addEventListener('click',()=>{if(mode!=='menu'&&!paused)renderer?.domElement.requestPointerLock?.();});
 window.addEventListener('mousedown',e=>{if(mode==='menu'||paused||e.target!==renderer?.domElement)return;if(e.button===0)keys.add('MouseLeft');if(e.button===2)keys.add('MouseRight');});window.addEventListener('mouseup',e=>{if(e.button===0)keys.delete('MouseLeft');if(e.button===2)keys.delete('MouseRight');});window.addEventListener('contextmenu',e=>{if(mode!=='menu')e.preventDefault();});
 ui.volume.addEventListener('input',()=>{const value=Number(ui.volume.value)/100;audio.setVolume(value);ui.volumeValue.textContent=`${Math.round(value*100)}%`;});
-$('start-flight').onclick=()=>{if(launchEnabled&&selectedMode&&aircraftChosen)start(selectedMode==='free');};
+$('start-flight').onclick=()=>{if(launchEnabled&&selectedMode&&aircraftChosen){enterFullscreen();start(selectedMode==='free');}};
 $('mode-mission').onclick=()=>chooseMode('mission');$('mode-free').onclick=()=>chooseMode('free');
 $('pause-button').onclick=showPause;$('controls-button').onclick=showPause;$('resume-button').onclick=showPause;$('restart-button').onclick=()=>start(mode==='free');$('hangar-button').onclick=hangar;
 $('map-choice').onclick=openMapDialog;
@@ -1308,6 +1322,6 @@ $('map-select').onclick=async()=>{
   if(mapLoading||world)return;
   if(!window.showDirectoryPicker){setMapStatus('Choose a current desktop Chrome or Edge browser to select a map folder.','error');return;}
   try{await prepareMap(await window.showDirectoryPicker({mode:'readwrite',id:'skyfall-lyon-map'}));}
-  catch(error){if(error.name!=='AbortError')setMapStatus(error.message,'error');}
+  catch(error){if(error?.name!=='AbortError')setMapStatus(error?.message||'Could not open the map folder. Please try again.','error');}
 };
 init();

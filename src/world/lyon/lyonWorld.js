@@ -4,7 +4,9 @@ import {TilesRenderer} from '3d-tiles-renderer';
 import {LoadRegionPlugin,ReorientationPlugin,SphereRegion} from '3d-tiles-renderer/three/plugins';
 import {createTraffic} from './traffic.js';
 import {sampleCollisionHeight} from './collisionField.js';
-import {approachTileError,tileErrorTarget} from './tileQuality.js';
+import {approachTileError,tileErrorTarget,tileNearbyRadius,tilePreloadDistance,tileRetryDelay} from './tileQuality.js';
+import {releaseFailedTile,suspendFailedTile} from './tileFailureRecovery.js';
+import {createRiverWater} from './riverWater.js';
 import {fractureMesh} from '../../gameplay/combat/destruction.js';
 import {createBuildingIndex,distanceToFootprint} from './buildings.js';
 import {blastRubbleHeight} from '../../gameplay/combat/nuclearBlast.js';
@@ -34,20 +36,22 @@ export async function createLyonWorld(scene,onProgress=()=>{},renderer,camera,ma
 
   const tiles=new TilesRenderer(asset('lyon-photomesh/tileset.json'));
   if(mapArchive)tiles.registerPlugin({name:'LYON_MAP_ARCHIVE',fetchData:(url,options)=>mapArchive.fetchData(url,options)});
-  // Keep tiles under the aircraft warm as well as those ahead of it. A single
-  // look-ahead sphere left the nearby city outside the preload area at speed.
+  // Keep parent tiles available while higher detail arrives during rapid turns.
   tiles.errorTarget=9.5;
   tiles.errorFalloff=10;
   tiles.errorFalloffDensity=.001;
-  tiles.downloadQueue.maxJobsPerOrigin=4;
-  tiles.parseQueue.maxJobs=2;
-  tiles.maxTilesProcessed=110;
+  tiles.loadAncestors=true;
+  tiles.loadSiblings=true;
+  tiles.downloadQueue.maxJobsPerOrigin=10;
+  tiles.parseQueue.maxJobs=3;
+  tiles.maxTilesProcessed=260;
   const memoryGB=navigator.deviceMemory||8;
-  const cacheGB=Math.min(1.15,Math.max(.7,memoryGB*.14));
+  const cacheGB=Math.min(1.6,Math.max(.8,memoryGB*.2));
   tiles.lruCache.minBytesSize=cacheGB*.72*1024**3;
   tiles.lruCache.maxBytesSize=cacheGB*1024**3;
-  const nearby=new SphereRegion({sphere:new THREE.Sphere(new THREE.Vector3(),450),errorTarget:10});
-  const lookAhead=new SphereRegion({sphere:new THREE.Sphere(new THREE.Vector3(),450),errorTarget:12});
+  const nearby=new SphereRegion({sphere:new THREE.Sphere(new THREE.Vector3(),650),errorTarget:10});
+  const lookAhead=new SphereRegion({sphere:new THREE.Sphere(new THREE.Vector3(),700),errorTarget:12});
+  const travelAhead=new SphereRegion({sphere:new THREE.Sphere(new THREE.Vector3(),700),errorTarget:12});
   const launchRegions=[
     new SphereRegion({sphere:new THREE.Sphere(new THREE.Vector3(),500),errorTarget:11}),
     new SphereRegion({sphere:new THREE.Sphere(new THREE.Vector3(),500),errorTarget:11}),
@@ -62,6 +66,8 @@ export async function createLyonWorld(scene,onProgress=()=>{},renderer,camera,ma
   const setResolution=()=>tiles.setResolution(camera,Math.floor(innerWidth*renderer.getPixelRatio()),Math.floor(innerHeight*renderer.getPixelRatio()));
   setResolution();
   let loaded=0;
+  let traffic;
+  const water=createRiverWater((x,z)=>traffic?.isRoadBridge?.(x,z)||false);
   const damageSites=[];
   const blastZones=[];
   const loadedScenes=new Set();
@@ -76,9 +82,11 @@ export async function createLyonWorld(scene,onProgress=()=>{},renderer,camera,ma
   const makeReady=()=>{if(!launchReady){launchReady=true;resolveReady();}};
   tiles.addEventListener('load-root-tileset',()=>onProgress(0));
   const retryAttempts=new Map();
-  let failedTileRetryAt=0;
+  const pendingTileRetries=new Map();
+  const clearTileRetry=({url})=>retryAttempts.delete(String(url));
+  tiles.addEventListener('load-tileset',clearTileRetry);
   tiles.addEventListener('load-model',({scene:tileScene,url})=>{
-    retryAttempts.delete(String(url));
+    clearTileRetry({url});
     // Aerial textures are often viewed at a grazing angle from the jet.
     tileScene?.traverse(object=>{
       if(!object.isMesh)return;
@@ -88,11 +96,13 @@ export async function createLyonWorld(scene,onProgress=()=>{},renderer,camera,ma
     });
     loaded++;onProgress(loaded);
     if(tileScene){
+      water.enhance(tileScene,tiles.group);
       loadedScenes.add(tileScene);
       if(damageSites.length)pendingDamageScenes.add(tileScene);
     }
   });
   tiles.addEventListener('dispose-model',({scene:tileScene})=>{
+    water.forget(tileScene);
     loadedScenes.delete(tileScene);
     pendingDamageScenes.delete(tileScene);
   });
@@ -100,22 +110,27 @@ export async function createLyonWorld(scene,onProgress=()=>{},renderer,camera,ma
   tiles.addEventListener('load-error',event=>{
     tileLoadErrors++;
     const name=event.error?.name;
-    const missing=/error code 404/.test(event.error?.message||'')||name==='NotFoundError';
+    const missing=/\b404\b|not found|missing from/i.test(event.error?.message||'')||name==='NotFoundError';
     if(missing)missingPackTiles++;
     const permanent=missing||name==='NotAllowedError'||name==='SecurityError';
+    // The renderer considers FAILED children ready for REPLACE refinement. That
+    // hides an already loaded parent and leaves an empty patch. It also leaves
+    // failures in its LRU, which prevents a later request from restarting.
+    // Remove the failed entry, then hold it pending until its retry is due.
+    if(event.tile){
+      suspendFailedTile(tiles,event.tile);
+    }
     if(!permanent){
       const key=String(event.url),attempt=retryAttempts.get(key)||0;
-      if(attempt<2){
-        retryAttempts.set(key,attempt+1);
-        const due=performance.now()+(attempt===0?1000:3000);
-        failedTileRetryAt=failedTileRetryAt?Math.min(failedTileRetryAt,due):due;
-      }
+      retryAttempts.set(key,attempt+1);
+      const due=performance.now()+tileRetryDelay(attempt);
+      if(event.tile)pendingTileRetries.set(event.tile,due);
     }
     if(tileLoadErrors<=3)console.warn('Lyon map tile unavailable',event);
     else if(tileLoadErrors===4)console.warn('Further unavailable map tiles are suppressed. The selected pack may cover only the central demo area.');
   });
   scene.add(tiles.group);
-  const traffic=await createTraffic(scene,asset('assets/city/lyon/traffic.json'));
+  traffic=await createTraffic(scene,asset('assets/city/lyon/traffic.json'));
   const collisionHeight=(x,z)=>{
     let height=sampleCollisionHeight(collisionField,heights,x,z);
     for(const building of buildingIndex.nearby(x,z)){
@@ -143,7 +158,7 @@ export async function createLyonWorld(scene,onProgress=()=>{},renderer,camera,ma
     try{
       tileScene.updateWorldMatrix(true,true);
       tileScene.traverse(mesh=>{
-        if(!mesh.isMesh||!mesh.geometry?.getAttribute('position'))return;
+        if(!mesh.isMesh||mesh.userData.waterOverlay||!mesh.geometry?.getAttribute('position'))return;
         if(!mesh.geometry.boundingSphere)mesh.geometry.computeBoundingSphere();
         sphere.copy(mesh.geometry.boundingSphere).applyMatrix4(mesh.matrixWorld);
         let applied=appliedDamage.get(mesh);
@@ -252,15 +267,17 @@ export async function createLyonWorld(scene,onProgress=()=>{},renderer,camera,ma
     return hit?.point.y??null;
   }
   traffic.setSurfaceSampler(visualHeight);
-  const inverse=new THREE.Matrix4(),ahead=new THREE.Vector3();
+  const inverse=new THREE.Matrix4(),ahead=new THREE.Vector3(),travelDirection=new THREE.Vector3();
   let frameAverage=16.7;
   const frameSamples=[];
-  function update(dt,position,direction,speed=55,inFlight=false){
+  function update(dt,position,direction,speed=55,inFlight=false,velocity=null){
     traffic.update(dt,position);
+    water.update(dt);
     if(!position)return;
     if(!inFlight){
       preloader.removeRegion(nearby);
       preloader.removeRegion(lookAhead);
+      preloader.removeRegion(travelAhead);
       tiles.group.updateMatrixWorld();
       inverse.copy(tiles.group.matrixWorld).invert();
       for(let i=0;i<launchRegions.length;i++){
@@ -275,9 +292,18 @@ export async function createLyonWorld(scene,onProgress=()=>{},renderer,camera,ma
     tiles.group.updateMatrixWorld();
     inverse.copy(tiles.group.matrixWorld).invert();
     nearby.sphere.center.copy(position).applyMatrix4(inverse);
+    nearby.sphere.radius=tileNearbyRadius(speed);
+    const distance=tilePreloadDistance(speed);
     ahead.copy(position);
-    if(direction)ahead.addScaledVector(direction,Math.min(700,Math.max(180,speed*3)));
+    if(direction)ahead.addScaledVector(direction,distance);
     lookAhead.sphere.center.copy(ahead).applyMatrix4(inverse);
+    if(velocity?.lengthSq()>1&&direction){
+      travelDirection.copy(velocity).normalize();
+      if(travelDirection.dot(direction)<.98){
+        preloader.addRegion(travelAhead);
+        travelAhead.sphere.center.copy(position).addScaledVector(travelDirection,distance).applyMatrix4(inverse);
+      }else preloader.removeRegion(travelAhead);
+    }else preloader.removeRegion(travelAhead);
   }
   function updateTiles(frameMs=16.7,altitude=camera.position.y,inFlight=false){
     if(document.visibilityState==='visible'&&frameMs<250){
@@ -285,11 +311,16 @@ export async function createLyonWorld(scene,onProgress=()=>{},renderer,camera,ma
       frameSamples.push(frameMs);
       if(frameSamples.length>120)frameSamples.shift();
     }
-    const desired=tileErrorTarget(altitude,frameAverage,tiles.stats.refused>0,inFlight);
-    tiles.errorTarget=approachTileError(tiles.errorTarget,desired,Math.min(frameMs/1000,.05));
-    if(failedTileRetryAt&&performance.now()>=failedTileRetryAt){
-      failedTileRetryAt=0;
-      tiles.resetFailedTiles();
+    const cacheBlocked=tiles.stats.refused>0;
+    const desired=tileErrorTarget(altitude,frameAverage,cacheBlocked,inFlight);
+    // Shed detail immediately when requests are refused; a slow ramp keeps the
+    // cache saturated and can starve the parent tiles needed to fill gaps.
+    tiles.errorTarget=cacheBlocked?Math.max(tiles.errorTarget,desired):approachTileError(tiles.errorTarget,desired,Math.min(frameMs/1000,.05));
+    const now=performance.now();
+    for(const [tile,due] of pendingTileRetries){
+      if(now<due)continue;
+      pendingTileRetries.delete(tile);
+      releaseFailedTile(tile);
     }
     camera.updateMatrixWorld();tiles.update();
     if(!launchReady){
@@ -307,6 +338,7 @@ export async function createLyonWorld(scene,onProgress=()=>{},renderer,camera,ma
   }
   function dispose(){
     traffic.destroy();
+    water.dispose();
     scene.remove(tiles.group,ambient,sun);
     tiles.dispose();
     if(scene.background===sky)scene.background=null;
@@ -317,7 +349,7 @@ export async function createLyonWorld(scene,onProgress=()=>{},renderer,camera,ma
     tiles,traffic,collisionHeight,visualHeight,raycastCity,collapseBuildingAt,blastBuildingCandidates,blastRubbleSites,flattenArea,replayDamage,resetDamage,ready,
     city:{get loadedCount(){return loaded;}},
     update,updateTiles,dispose,
-    get quality(){const sorted=[...frameSamples].sort((a,b)=>a-b);return {errorTarget:tiles.errorTarget,frameMs:frameAverage,p95FrameMs:sorted[Math.floor(sorted.length*.95)]??0,cacheMB:Math.round(tiles.lruCache.cachedBytes/1048576),cacheLimitMB:Math.round(tiles.lruCache.maxBytesSize/1048576),deviceMemoryGB:navigator.deviceMemory??null,tileLoadErrors,missingPackTiles,retryQueued:!!failedTileRetryAt,...tiles.stats};},
+    get quality(){const sorted=[...frameSamples].sort((a,b)=>a-b);return {errorTarget:tiles.errorTarget,frameMs:frameAverage,p95FrameMs:sorted[Math.floor(sorted.length*.95)]??0,cacheMB:Math.round(tiles.lruCache.cachedBytes/1048576),cacheLimitMB:Math.round(tiles.lruCache.maxBytesSize/1048576),deviceMemoryGB:navigator.deviceMemory??null,tileLoadErrors,missingPackTiles,retryQueued:pendingTileRetries.size>0,...tiles.stats};},
     setResolution
   };
 }

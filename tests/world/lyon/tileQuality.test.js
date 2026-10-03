@@ -1,5 +1,5 @@
 import {test,expect} from 'bun:test';
-import {approachTileError,tileErrorTarget} from '../../../src/world/lyon/tileQuality.js';
+import {approachTileError,tileErrorTarget,tileNearbyRadius,tilePreloadDistance,tileRetryDelay} from '../../../src/world/lyon/tileQuality.js';
 
 test('low city flight selects finer tiles than high flight',()=>{
   expect(tileErrorTarget(145,16.7,false)).toBe(4.5);
@@ -18,4 +18,16 @@ test('quality degrades quickly and recovers gradually without overshoot',()=>{
   expect(approachTileError(5,9,1)).toBeCloseTo(6.3);
   expect(approachTileError(9,4.5,1)).toBeCloseTo(8.45);
   expect(approachTileError(5,5.1,1)).toBeCloseTo(5.1);
+});
+
+test('boost speed keeps several seconds of travel and nearby turns preloaded',()=>{
+  expect(tilePreloadDistance(300)).toBe(1500);
+  expect(tileNearbyRadius(300)).toBe(825);
+  expect(tilePreloadDistance(0)).toBe(450);
+});
+
+test('failed tiles keep a capped retry delay instead of giving up',()=>{
+  expect(tileRetryDelay(0)).toBe(250);
+  expect(tileRetryDelay(6)).toBe(30000);
+  expect(tileRetryDelay(20)).toBe(30000);
 });

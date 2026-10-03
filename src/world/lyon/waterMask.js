@@ -1,6 +1,6 @@
 // Approximate the two visible Lyon river corridors in game coordinates. The
 // control points follow the river crossings in the bundled OSM road data.
-const RIVERS=[
+export const RIVERS=[
   {width:66,points:[[-620,1180],[-605,640],[-595,260],[-530,-120],[-300,-600],[-95,-1160]]},
   {width:53,points:[[210,1180],[105,610],[260,190],[435,-185],[715,-720],[850,-1160]]}
 ];

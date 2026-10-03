@@ -14,3 +14,16 @@ export function approachTileError(current,desired,seconds){
   const step=(desired>current?1.3:.55)*seconds;
   return Math.max(4.5,Math.min(10,current+Math.max(-step,Math.min(step,desired-current))));
 }
+
+// Keep several seconds of flight path warm before the camera reaches it.
+export function tilePreloadDistance(speed){
+  return Math.min(1600,Math.max(450,speed*5));
+}
+
+export function tileNearbyRadius(speed){
+  return Math.min(850,Math.max(650,600+speed*.75));
+}
+
+export function tileRetryDelay(attempt){
+  return [250,900,2500,6000,12000,20000,30000][Math.min(attempt,6)];
+}

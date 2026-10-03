@@ -4,31 +4,64 @@ import {posix as path} from './tilePath.js';
 // descendants so REPLACE refinement retains the closest available parent mesh.
 export function pruneTilesets(tilesets,available){
   const result=new Map();
+  const coverage=new Map();
   const visiting=new Set();
   function prune(name){
-    if(result.has(name))return result.get(name);
+    if(result.has(name))return coverage.get(name);
     if(visiting.has(name))return null;
     const tileset=tilesets.get(name);
     if(!tileset)return null;
     visiting.add(name);
     const folder=name.slice(0,name.lastIndexOf('/')+1);
-    function validContent(content){
+    function contentState(content){
       const uri=content?.uri||content?.url;
-      if(!uri)return false;
+      if(!uri)return {valid:false,complete:false,renderable:false};
       const target=path(folder,uri.split(/[?#]/)[0]);
-      return available.has(target)&&(!target.endsWith('.json')||!!prune(target));
+      if(!available.has(target))return {valid:false,complete:false,renderable:false};
+      if(target.endsWith('.json')){
+        const child=prune(target);
+        return {valid:!!child?.node,complete:!!child?.complete,renderable:false};
+      }
+      return {valid:true,complete:true,renderable:true};
     }
     function node(tile){
-      if(tile.content&&!validContent(tile.content))delete tile.content;
-      if(tile.contents)tile.contents=tile.contents.filter(validContent);
-      if(tile.children)tile.children=tile.children.map(node).filter(Boolean);
-      return tile.content||tile.contents?.length||tile.children?.length?tile:null;
+      const own=[];
+      if(tile.content){
+        const state=contentState(tile.content);
+        own.push(state);
+        if(!state.valid)delete tile.content;
+      }
+      if(tile.contents){
+        const contents=tile.contents.map(content=>({content,state:contentState(content)}));
+        own.push(...contents.map(({state})=>state));
+        tile.contents=contents.filter(({state})=>state.valid).map(({content})=>content);
+        if(!tile.contents.length)delete tile.contents;
+      }
+      const originalChildren=tile.children||[];
+      const children=originalChildren.map(node);
+      const childrenComplete=children.every(child=>child?.complete);
+      const ownComplete=own.every(state=>state.complete);
+      const hasRenderableContent=own.some(state=>state.valid&&state.renderable);
+      // A REPLACE parent cannot hand off to only some of its children: once
+      // the available children load, the uncovered portion becomes a hole.
+      // Stop at the nearest tile whose own mesh still covers the whole area.
+      if(hasRenderableContent&&(!childrenComplete||!ownComplete)){
+        delete tile.children;
+        return {node:tile,complete:true};
+      }
+      if(originalChildren.length){
+        tile.children=children.filter(Boolean).map(child=>child.node);
+        if(!tile.children.length)delete tile.children;
+      }
+      if(!tile.content&&!tile.contents?.length&&!tile.children?.length)return null;
+      return {node:tile,complete:(own.length===0||ownComplete)&&childrenComplete};
     }
-    tileset.root=node(tileset.root);
+    const root=node(tileset.root);
+    tileset.root=root?.node||null;
     visiting.delete(name);
-    const valid=tileset.root?JSON.stringify(tileset):null;
-    result.set(name,valid);
-    return valid;
+    result.set(name,root?JSON.stringify(tileset):null);
+    coverage.set(name,root);
+    return root;
   }
   for(const name of tilesets.keys())prune(name);
   return result;
