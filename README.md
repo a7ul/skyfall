@@ -6,13 +6,18 @@ This project asks how far modern browser graphics and AI-assisted development ca
 
 ## Gameplay video
 
-[![F-22 flying above Lyon in the gameplay recording](docs/media/gameplay-video-poster.jpg)](https://github.com/a7ul/skyfall/releases/download/assets/gameplay.mp4)
+
+[![F-22 flying above Lyon in the gameplay recording](https://github.com/user-attachments/assets/0bdd5ac0-522b-4679-9e96-28e8b31f2b6d)](https://github.com/a7ul/skyfall/releases/download/assets/gameplay.mp4)
+
+**Click to download the full gameplay video**
 
 [Download the full gameplay recording (MP4, 1.05 GB)](https://github.com/a7ul/skyfall/releases/download/assets/gameplay.mp4). The three screenshots here are frames from that recording.
 
-| Low flight over Lyon | River approach |
-| --- | --- |
-| [![F-22 flying low over Lyon](docs/media/gameplay-city.jpg)](https://github.com/a7ul/skyfall/releases/download/assets/gameplay.mp4) | [![F-22 approaching the river in Lyon](docs/media/gameplay-river.jpg)](https://github.com/a7ul/skyfall/releases/download/assets/gameplay.mp4) |
+### Low flight over Lyon
+![F-22 flying low over Lyon](docs/media/gameplay-city.jpg)
+
+### River approach
+![F-22 approaching the river in Lyon](docs/media/gameplay-river.jpg)
 
 ## Play in Chrome
 
