@@ -24,16 +24,27 @@ test('bank then pull turns toward the bank',()=>{
   expect(f(right).x).toBeGreaterThan(0);
 });
 
-test('pitch and bank stop at safe limits under sustained input',()=>{
+test('pitch stops at its limit while bank can pass through inverted flight',()=>{
   const pitch=new THREE.Quaternion(),bank=new THREE.Quaternion();
+  let inverted=false;
   for(let i=0;i<400;i++){
     applyFlightInput(pitch,input(1),.05,1);
     applyFlightInput(bank,input(0,1),.05,1);
+    if(new THREE.Vector3(0,1,0).applyQuaternion(bank).y<-.98)inverted=true;
   }
   const pe=new THREE.Euler().setFromQuaternion(pitch,'YXZ');
-  const be=new THREE.Euler().setFromQuaternion(bank,'YXZ');
   expect(THREE.MathUtils.radToDeg(pe.x)).toBeCloseTo(75,4);
-  expect(THREE.MathUtils.radToDeg(be.z)).toBeCloseTo(80,4);
+  expect(inverted).toBe(true);
+});
+
+test('a held bank completes a full roll and continues',()=>{
+  const bank=new THREE.Quaternion();
+  const total=2*Math.PI/1.23;
+  const steps=240;
+  for(let i=0;i<steps;i++)applyFlightInput(bank,input(0,1),total/steps,1);
+  expect(new THREE.Vector3(0,1,0).applyQuaternion(bank).distanceTo(new THREE.Vector3(0,1,0))).toBeLessThan(.001);
+  applyFlightInput(bank,input(0,1),.25,1);
+  expect(new THREE.Vector3(0,1,0).applyQuaternion(bank).x).toBeLessThan(-.25);
 });
 
 test('yaw, pitch, and roll affect distinct axes',()=>{

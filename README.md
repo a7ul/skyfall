@@ -22,7 +22,7 @@ The menu also links to a **Lyon 2023 photomesh flight trial** at `/lyon.html`. I
 | Input | Action |
 | --- | --- |
 | W / S or ↑ / ↓ | Nose down / up |
-| A / D | Roll right / left |
+| A / D | Roll left / right; hold for a full roll |
 | Q / E or ← / → | Yaw left / right |
 | Shift / Ctrl | Increase / decrease throttle |
 | Mouse movement after clicking the game | Pitch and bank (returns to center) |
@@ -33,7 +33,7 @@ The menu also links to a **Lyon 2023 photomesh flight trial** at `/lyon.html`. I
 | M | Mute / unmute |
 | P / Esc / bottom HUD button | Pause and show all controls |
 
-Free flight starts at about 55 m/s (106 knots) in the F-22. Full throttle engages the fast combat range; press G for the air brake. Bank with A or D, then hold S to turn in that direction. Pitch is limited to 75°, bank to 80°, and combined pitch, roll, and yaw input is normalized. Yaw turns more slowly than pitch or roll. The left and right ailerons deflect in opposite directions for roll; both elevators follow pitch; the tail rudders follow yaw. Gamepad: left stick pitch/bank, shoulders yaw, triggers throttle, A cannon, B missile.
+Free flight starts at about 55 m/s (106 knots) in the F-22. Full throttle engages the fast combat range; press G for the air brake. Bank with A or D, then hold S to turn in that direction. Pitch is limited to 75°, while roll can continue through a full 360°; combined pitch, roll, and yaw input is normalized. Yaw turns more slowly than pitch or roll. The left and right ailerons deflect in opposite directions for roll; both elevators follow pitch; the tail rudders follow yaw. Gamepad: left stick pitch/bank, shoulders yaw, triggers throttle, A cannon, B missile.
 
 ## Data and assets
 
