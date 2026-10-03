@@ -43,4 +43,4 @@ The F-22, F-35, Su-57, and Su-35 use off-the-shelf textured models. Their source
 
 The newer Aalto University Kalasatama scan has been assessed separately in [docs/kalasatama-feasibility.md](docs/kalasatama-feasibility.md). It is not yet a playable city layer.
 
-Afterburners use layered blue exhaust that pulses with throttle. Guided missiles have a visible motor, fins, and smoke trail. Impacts add a flash, shockwave, sparks, and smoke; audio effects are synthesized locally.
+Afterburners use layered blue exhaust that pulses with throttle. Guided missiles have a visible motor, fins, and smoke trail. Impacts add a flash, shockwave, sparks, and smoke; audio effects are synthesized locally. Traffic cars can be destroyed with the cannon in either flight mode or with a locked missile in free flight. Hits remove the moving car and leave a briefly burning, smoking wreck. Restarting a flight restores traffic.

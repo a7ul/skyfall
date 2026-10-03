@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js';
+import {nearestVehicleHit,nearestVehicleLock} from './vehicleHits.js';
 
 const PAINT=[0xdedfdc,0x252c34,0x9badaf,0x8c3330,0x30445c,0x605c55,0xc2c4be,0x425b52,0xd4d6d6,0x294255,0xc2a884];
 const TYPES=[
@@ -61,11 +62,16 @@ export async function createTraffic(scene){
   const cars=[];
   for(let i=0;i<routes.length;i++){
     const route=routes[i];
-    if(i%2===0||route.length>150)cars.push({route,offset:(i*.61803398875%1)*route.length,speed:route.speed*(.36+(i%5)*.025),type:i%4,color:i%PAINT.length});
-    if(route.length>220&&i%3===0)cars.push({route,offset:route.length*.55,speed:route.speed*.4,type:(i+2)%4,color:(i+3)%PAINT.length});
+    if(i%2===0||route.length>150)cars.push({route,offset:(i*.61803398875%1)*route.length,speed:route.speed*(.36+(i%5)*.025),variant:i%4,color:i%PAINT.length});
+    if(route.length>220&&i%3===0)cars.push({route,offset:route.length*.55,speed:route.speed*.4,variant:(i+2)%4,color:(i+3)%PAINT.length});
+  }
+  for(const car of cars){
+    const spec=TYPES[car.variant];
+    car.type='car';car.name='ROAD VEHICLE';car.alive=true;car.visible=true;car.health=1;
+    car.position=new THREE.Vector3();car.heading=0;car.width=spec.width;car.length=spec.length;car.height=spec.height;
   }
   const groups=TYPES.map((spec,type)=>{
-    const entries=cars.filter(car=>car.type===type),meshes=parts(scene,spec,entries.length);
+    const entries=cars.filter(car=>car.variant===type),meshes=parts(scene,spec,entries.length);
     entries.forEach((car,index)=>{car.instance=index;meshes[0].setColorAt(index,new THREE.Color(PAINT[car.color]));});
     meshes[0].instanceColor.needsUpdate=true;
     return meshes;
@@ -74,6 +80,7 @@ export async function createTraffic(scene){
   function update(dt,position){
     elapsed+=dt;
     for(const car of cars){
+      if(!car.alive)continue;
       const route=car.route,total=route.length;
       const phase=(car.offset+elapsed*car.speed)%(total*2);
       const distance=phase<total?phase:total*2-phase;
@@ -86,11 +93,24 @@ export async function createTraffic(scene){
       const y=a[1]+(b[1]-a[1])*t;
       const z=a[2]+(b[2]-a[2])*t-Math.sin(angle)*lane;
       const far=position&&Math.hypot(position.x-x,position.z-z)>1300;
+      car.position.set(x,y,z);car.heading=angle;car.visible=!far;
       dummy.position.set(x,far?-1000:y,z);dummy.rotation.set(0,angle,0);dummy.scale.setScalar(far?.001:1);dummy.updateMatrix();
-      for(const mesh of groups[car.type])mesh.setMatrixAt(car.instance,dummy.matrix);
+      for(const mesh of groups[car.variant])mesh.setMatrixAt(car.instance,dummy.matrix);
     }
     for(const meshes of groups)for(const mesh of meshes)mesh.instanceMatrix.needsUpdate=true;
   }
+  function destroy(car){
+    if(!car?.alive)return null;
+    car.alive=false;car.visible=false;
+    const hit={position:car.position.clone(),heading:car.heading,width:car.width,length:car.length,height:car.height};
+    dummy.position.set(0,-10000,0);dummy.rotation.set(0,0,0);dummy.scale.setScalar(.001);dummy.updateMatrix();
+    for(const mesh of groups[car.variant]){mesh.setMatrixAt(car.instance,dummy.matrix);mesh.instanceMatrix.needsUpdate=true;}
+    return hit;
+  }
+  function reset(){
+    for(const car of cars){car.alive=true;car.health=1;}
+    elapsed=0;update(0,null);
+  }
   update(0,null);
-  return {update,count:cars.length};
+  return {update,reset,destroy,findRayHit:(origin,direction,maxDistance=1500)=>nearestVehicleHit(cars,origin,direction,maxDistance),findLockTarget:(origin,direction,maxDistance=1800)=>nearestVehicleLock(cars,origin,direction,maxDistance,.18),count:cars.length};
 }

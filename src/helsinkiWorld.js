@@ -140,5 +140,5 @@ export async function createHelsinkiWorld(scene,onProgress=()=>{},renderer){
     candidates.sort((a,b)=>a.priority-b.priority);
     for(const {tile,tier} of candidates.slice(0,2-pending.size))loadTile(tile,tier);
   }
-  return {sea,city:{get loadedCount(){return overview.length+loaded.size;}},update,warmup};
+  return {sea,traffic,city:{get loadedCount(){return overview.length+loaded.size;}},update,warmup};
 }
