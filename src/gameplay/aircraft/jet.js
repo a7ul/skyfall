@@ -106,15 +106,15 @@ function makeExhausts(spec){
     const throat=new THREE.Mesh(new THREE.CircleGeometry(radius*.78,32),new THREE.MeshBasicMaterial({map:exhaustTextures.throat,transparent:true,opacity:.62,depthWrite:false,blending:THREE.AdditiveBlending,side:THREE.DoubleSide}));
     throat.position.z=-.16;throat.userData.effect='throat';plume.add(throat);
     for(const [effect,length,baseRadius,opacity,map] of [
-      ['sheath',4.1,radius*.78,.27,exhaustTextures.outer],
-      ['core',3.05,radius*.64,.3,exhaustTextures.core]
+      ['sheath',3.2,radius*.65,.27,exhaustTextures.outer],
+      ['core',2.35,radius*.52,.3,exhaustTextures.core]
     ]){
       const mesh=new THREE.Mesh(plumeGeometry(length,baseRadius,effect),new THREE.MeshBasicMaterial({map,color:effect==='sheath'?0x9ebfff:0xffffff,transparent:true,opacity,depthWrite:false,blending:effect==='core'?THREE.AdditiveBlending:THREE.NormalBlending,side:THREE.DoubleSide}));
       mesh.userData.baseOpacity=opacity;
       mesh.userData.effect=effect;
       plume.add(mesh);
     }
-    const heat=new THREE.Mesh(plumeGeometry(5.1,radius*1.18),heatMaterial(exhaustTextures.outer));
+    const heat=new THREE.Mesh(plumeGeometry(3.8,radius*.98),heatMaterial(exhaustTextures.outer));
     heat.userData.effect='heat';heat.userData.baseOpacity=.11;plume.add(heat);
     exhausts.add(plume);
   }
@@ -176,21 +176,24 @@ export function createJet(spec,scale=1){
 }
 
 export function updateAfterburners(jet,throttle,time,airbrake=false){
-  const power=airbrake?0:THREE.MathUtils.clamp((throttle-.8)/.2,0,1);
+  // Cruise keeps a short, faint plume; the long bright plume grows above 80% throttle.
+  const cruise=THREE.MathUtils.clamp((throttle-.18)/.12,0,1);
+  const boost=airbrake?0:THREE.MathUtils.clamp((throttle-.8)/.2,0,1);
+  const intensity=cruise*(.4+.6*boost);
   for(const exhaust of jet?.userData.afterburners||[]){
-    exhaust.visible=power>.015;
+    exhaust.visible=cruise>.01;
     if(!exhaust.visible)continue;
     for(let index=0;index<exhaust.children.length;index++){
       const plume=exhaust.children[index];
       const flicker=1+.025*Math.sin(time*37+index*2.1)+.012*Math.sin(time*79-index);
-      plume.scale.z=(.72+power*.28)*flicker;
-      plume.scale.x=plume.scale.y=.93+power*.07;
+      plume.scale.z=(.52+boost*.48)*flicker;
+      plume.scale.x=plume.scale.y=.84+boost*.16;
       for(const mesh of plume.children){
         const effect=mesh.userData.effect;
         const pulse=1+.045*Math.sin(time*(effect==='core'?53:31)+index*2.7);
-        if(effect==='liner')mesh.material.opacity=(.06+.17*power)*pulse;
-        else if(effect==='throat')mesh.material.opacity=(.16+.46*power)*pulse;
-        else{mesh.material.opacity=mesh.userData.baseOpacity*power*pulse;mesh.rotation.z=.11*Math.sin(time*(effect==='core'?6.7:4.3)+index);}
+        if(effect==='liner')mesh.material.opacity=cruise*(.07+.16*boost)*pulse;
+        else if(effect==='throat')mesh.material.opacity=cruise*(.15+.47*boost)*pulse;
+        else{mesh.material.opacity=mesh.userData.baseOpacity*intensity*pulse;mesh.rotation.z=.11*Math.sin(time*(effect==='core'?6.7:4.3)+index);}
       }
     }
   }
