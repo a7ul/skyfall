@@ -1,42 +1,48 @@
 # Skyfall Protocol
 
-**A WebGPU fighter jet game over Lyon.** Fly one story mission or explore freely in an F-22, F-35, Su-57, or Su-35. The city uses Métropole de Lyon's 2023 textured photomesh, streamed as 3D Tiles, with OpenStreetMap roads and building data for traffic and collisions.
+**A full air-combat game in your browser.** Fly modern fighter jets, take on air and ground targets, and explore a real 3D city. This first playable build gives you a story mission and free flight over Lyon.
 
-> Playable prototype · One mission + free flight · Desktop browser with WebGPU · No API key or billing project
+**Lyon is going dark.** A rogue air-defense network has cut the evacuation route through the city. You are Viper One, the last fighter close enough to break the signal, clear the skies, and open a way out. Choose an F-22, F-35, Su-57, or Su-35 and take the fight from the open sky down among the rooftops.
 
-[![F-22 promotional artwork above Lyon](docs/art/f22-over-lyon.jpg)](https://github.com/a7ul/skyfall/releases/download/assets/f22-over-lyon.png)
+[![F-22 above Lyon, promotional artwork](docs/art/f22-over-lyon.jpg)](https://github.com/a7ul/skyfall/releases/download/assets/f22-over-lyon.png)
 
-*F-22 over Lyon — promotional artwork, not an in-game render. Click for the full-resolution image.*
+*Promotional artwork showing the visual direction. Actual gameplay is shown below.*
 
-## Gameplay screenshots
+## Your sortie
 
-These images are captured from the Lyon build in free flight. They show the actual aircraft, HUD, and streamed city tiles. Click either image for its copy in the [static `assets` release](https://github.com/a7ul/skyfall/releases/tag/assets).
+### Break the Silence — Mission 01
 
-| High-detail city pass | Low flight and road-vehicle targeting |
+Two relay sites are jamming Lyon's evacuation corridor. Destroy both, survive the interceptors sent to stop you, and fly through the extraction gate. Echo guides you over the radio while the HUD tracks objectives and threats.
+
+### Free flight
+
+Pick a jet and explore without a mission timer. Skim the river, weave between blocks, practice barrel rolls and inverted flight, switch cameras, or test the weapons. Free flight provides ample missiles and bombs and unlimited nuclear bombs.
+
+| In the air | Over the city | In combat |
+| --- | --- | --- |
+| Separate pitch, roll, and yaw; full rolls and loops; air brake and throttle control; animated control surfaces. | Lyon's textured 3D city streams around you, with finer detail near the aircraft, moving road traffic, and pedestrians. | Cannon, lock-on or unguided missiles, gravity bombs, and a stylized nuclear blast; impact cues, damage, smoke, fire, and debris. |
+
+The four aircraft have different flight tuning. Chase, cockpit, and cinematic views let you change how close you feel to the jet and the streets.
+
+## Actual gameplay
+
+These are captures from the current Lyon build. The city, aircraft, targeting cue, and HUD shown here are in the game. Click an image for the copy in the [media release](https://github.com/a7ul/skyfall/releases/tag/assets).
+
+| A pass above central Lyon | Low flight with a road-vehicle target |
 | --- | --- |
 | [![Fighter jet above detailed Lyon rooftops](docs/screenshots/lyon-high-detail.png)](https://github.com/a7ul/skyfall/releases/download/assets/lyon-high-detail.png) | [![Fighter jet targeting a road vehicle in Lyon](docs/screenshots/lyon-free-flight.png)](https://github.com/a7ul/skyfall/releases/download/assets/lyon-free-flight.png) |
 
 ## Aircraft and combat artwork
 
-These high-resolution images illustrate the intended visual direction. They are **generated promotional art**, not gameplay captures or a claim about the current renderer. The README keeps small local copies so images render while the repository is private; each opens the full-resolution release asset.
+The images below are **generated promotional artwork**, not screenshots or a promise of the current graphics. They show different aircraft and the visual direction for future polish. Click for the full-resolution files in the media release.
 
-| Su-57 banking above the river | F-35 missile engagement |
+| Su-57 over the river | F-35 missile engagement |
 | --- | --- |
 | [![Su-57 promotional artwork above Lyon](docs/art/su57-over-lyon.jpg)](https://github.com/a7ul/skyfall/releases/download/assets/su57-over-lyon.png) | [![F-35 missile engagement promotional artwork](docs/art/f35-missile-engagement.jpg)](https://github.com/a7ul/skyfall/releases/download/assets/f35-missile-engagement.png) |
 
-## What is playable
+## Play locally
 
-- **Break the Silence:** disable two rogue defense relays, defeat interceptors, and reach the extraction gate over Lyon.
-- **Free flight:** explore the city, practice turns and rolls, and use the weapons without mission pressure.
-- **Four aircraft:** textured F-22, F-35, Su-57, and Su-35 models with individual flight tuning and animated ailerons, elevators, and rudders.
-- **Air and ground combat:** cannon, guided or unguided missiles, gravity bombs, and a stylized nuclear effect. The HUD shows missile and bomb impact cues. Cars, towers, and buildings react to hits.
-- **Progressive city detail:** broad low-detail Lyon coverage, with finer tiles around the aircraft and preloading ahead of flight. Roads support moving traffic and pedestrians.
-
-The destruction and flight model aim for a responsive arcade experience. Building collapse, blast effects, and collision heights are visual approximations rather than structural or weapon physics simulations.
-
-## Run locally
-
-Install [Bun](https://bun.sh/) and [Git LFS](https://git-lfs.com/). Use a current Chrome or Edge build with WebGPU and GPU acceleration enabled. An internet connection is needed for Lyon's live city tiles.
+You need a desktop Chrome or Edge build with WebGPU and GPU acceleration, [Bun](https://bun.sh/), [Git LFS](https://git-lfs.com/), and an internet connection for Lyon's city tiles. No API key or billing account is required.
 
 ```sh
 git clone git@github.com:a7ul/skyfall.git
@@ -46,58 +52,53 @@ bun install
 bun run dev
 ```
 
-Open the URL printed by Vite. Local development and `bun run preview` proxy the public Lyon tiles and convert their legacy glTF 1.0 payloads to glTF 2.0. The repo does not contain the large Lyon photomesh.
+Open the URL printed by Vite, choose an aircraft, then select **Launch Mission** or **Free Flight**.
 
-## Controls
+### Flight controls
 
 | Input | Action |
 | --- | --- |
-| W / S or ↑ / ↓ | Pitch nose down / up |
-| A / D | Roll left / right; hold for a full roll |
+| W / S or ↑ / ↓ | Nose down / up |
+| A / D | Roll left / right |
 | Q / E or ← / → | Yaw left / right |
 | Shift / Ctrl | Increase / decrease throttle |
-| Mouse after clicking the game | Pitch and bank, returning to center |
+| Mouse after clicking the game | Pitch and bank |
 | Space / left click | Cannon |
-| F / right click | Missile; guided after lock, straight ahead without lock |
+| F / right click | Missile, with or without a lock |
 | B / N | Gravity bomb / nuclear bomb |
 | G / C / M | Air brake / camera / mute |
-| P / Esc / HUD button | Pause and show controls |
+| P / Esc / HUD button | Pause and show all controls |
 
-Bank with A or D, then hold S to turn. Holding a roll or pitch input completes a full roll or loop; pitch, yaw, and roll remain separate while inverted. Free flight starts around 55 m/s in the F-22. Gamepad support includes left-stick pitch and bank, shoulder-button yaw, trigger throttle, and face-button weapons.
+Bank with A or D, then hold S to turn. Hold roll or pitch to complete a full roll or loop. Gamepad controls are supported too.
 
-## How the city works
+## Current state
 
-The [Métropole de Lyon 2023 photomesh](https://www.data.gouv.fr/datasets/photomaillage-3d-de-la-metropole-de-lyon) supplies the visible city under Licence Ouverte / Open Licence 2.0. Its advertised 5.5 cm figure refers to source aerial imagery, not guaranteed facade texture sharpness. [OpenStreetMap contributors](https://www.openstreetmap.org/copyright), ODbL, supply the road routes and building footprints used for traffic and an approximate collision grid. Photomesh roofs and OSM collision heights can differ. See the [city source notes](docs/data/city-source-trials.md) for details.
+This is a **playable prototype** with one complete mission and free flight. Flight handling favors responsive arcade maneuvers. Building collapse, blast effects, and collision heights are game approximations; the promotional artwork above is more polished than the current renderer. City detail depends on altitude, location, and the tiles loaded around the aircraft.
 
-Tiles load progressively, with finer screen-space detail at low altitude, preloading ahead of the aircraft, a device-sized cache, and frame-time adjustment. Add `?debug=1` during development to inspect tile and frame metrics.
+## Tech stack
 
-## Project map
+- **WebGPU rendering:** Three.js `WebGPURenderer` draws the aircraft, city, HUD effects, and destruction, with HDR sky lighting and ACES tone mapping. There is no WebGL fallback; a WebGPU-capable desktop browser and GPU are required.
+- **Streaming 3D world:** `3d-tiles-renderer` loads the 2023 Lyon photomesh progressively. Detail rises near the aircraft and eases back in the distance. OpenStreetMap roads and building footprints support traffic and an approximate collision grid.
+- **Aircraft and gameplay:** glTF fighter models, animated control surfaces, and custom flight, targeting, weapons, mission, traffic, audio, and damage systems run in the browser.
+- **Build pipeline:** Vite and Bun serve the game locally. `gltf-pipeline` converts Lyon's legacy tile payloads for the renderer; the GitHub Pages build preconverts a bounded static tile pack. Large model and HDR files use Git LFS.
 
-| Path | Purpose |
-| --- | --- |
-| `src/app/` | Game loop, UI, and styling |
-| `src/gameplay/aircraft/` | Jet models and control surfaces |
-| `src/gameplay/flight/` | Controls and flight dynamics |
-| `src/gameplay/combat/` | Weapons, targeting, and destruction |
-| `src/world/lyon/` | Tile streaming, traffic, buildings, and collisions |
-| `src/mission/`, `src/audio/` | Mission logic and sound |
-| `tools/vite/`, `tools/lyon/` | Live tile conversion and static tile-pack build |
-| `tests/`, `docs/` | Tests and design/source notes |
+<details>
+<summary>Development, city data, and deployment details</summary>
 
-Run `bun test` for the flight, combat, and world tests. See [gameplay tuning notes](docs/design/gameplay-design.md) for the design choices and known approximations.
+### How the city is built
 
-## GitHub Pages build
+The visible city is the [Métropole de Lyon 2023 photomesh](https://www.data.gouv.fr/datasets/photomaillage-3d-de-la-metropole-de-lyon), Licence Ouverte / Open Licence 2.0. [OpenStreetMap contributors](https://www.openstreetmap.org/copyright), ODbL, provide road routes and building footprints used for traffic and an approximate collision grid. The mesh streams progressively, with finer tiles near low-altitude flight and lower detail farther away. OSM collision heights can differ from the visible photomesh. See the [city source notes](docs/data/city-source-trials.md).
 
-The repository is currently private. Its Pages workflow stays skipped because GitHub Free does not support Pages for this private repo. When the repo becomes eligible, choose **Settings → Pages → Build and deployment → GitHub Actions**, then run the deployment workflow or push to `main`. The expected site path is `https://a7ul.github.io/skyfall/`.
+Local development uses Vite to proxy public Lyon tiles and convert their legacy glTF payloads. The large city mesh is not committed to this repo. The four fighter models and HDR sky use Git LFS. Run `bun test` for flight, combat, and world tests; see the [gameplay design notes](docs/design/gameplay-design.md) for tuning and limitations.
 
-To build the static site locally:
+### GitHub Pages
 
-```sh
-VITE_BASE_PATH=/skyfall/ bun run build:pages
-```
+The repository is private, and its Pages workflow stays skipped on GitHub Free. When the repo becomes eligible, select **Settings → Pages → GitHub Actions**, then run the deployment workflow or push to `main`. The expected URL is `https://a7ul.github.io/skyfall/`.
 
-This downloads and preconverts an approximately 810 MiB Lyon tile pack into ignored `dist/`. Broad city coverage uses lower detail; roughly 2 km around the starting center has finer detail, with the finest tiles in a smaller core. The full 2 km area at maximum detail exceeds GitHub Pages' 1 GB site limit. The build checks tile references and total size before upload. The workflow fetches Git LFS assets before building; generated city tiles are never committed to Git or LFS.
+A local static Pages build is available with `VITE_BASE_PATH=/skyfall/ bun run build:pages`. It creates an approximately 810 MiB preconverted Lyon tile pack in ignored `dist/`. The pack keeps broad lower-detail city coverage and finer detail around the starting area while staying under GitHub Pages' 1 GiB site limit.
+
+</details>
 
 ## Credits and licenses
 
-The fighter models are third-party assets with **noncommercial licenses**; review [aircraft attribution](public/assets/aircraft/ATTRIBUTION.md) before redistributing or commercial use. The sky and HDR lighting are adapted from [Poly Haven's Kloppenheim 05](https://polyhaven.com/a/kloppenheim_05_puresky), CC0. Recorded sound sources and licenses are in [audio credits](public/assets/audio/CREDITS.md). Lyon and OpenStreetMap data retain the licenses linked above.
+The fighter models are third-party assets with **noncommercial licenses**; check [aircraft attribution](public/assets/aircraft/ATTRIBUTION.md) before redistribution or commercial use. The sky and HDR lighting are adapted from [Poly Haven's Kloppenheim 05](https://polyhaven.com/a/kloppenheim_05_puresky), CC0. Sound sources and licenses are in [audio credits](public/assets/audio/CREDITS.md). The Lyon and OpenStreetMap data retain the licenses linked above.
