@@ -216,7 +216,7 @@ function updateFlight(dt){
   if(lowAirspeed&&!stallAdvisory){setRadio('Low airspeed. Release the brake and add power.');audio.warning();}
   stallAdvisory=lowAirspeed;
   $('stall-warning').classList.toggle('hidden',!lowAirspeed);
-  if(lowAirspeed)$('stall-countdown').textContent=stallSeconds>0?`RECOVER IN ${Math.max(0,Math.ceil(STALL_GRACE_SECONDS-stallSeconds))} S · RELEASE BRAKE · ADD POWER`:'RELEASE BRAKE · ADD POWER';
+  if(lowAirspeed){$('stall-warning').querySelector('strong').textContent=stallSeconds>0?'STALL WARNING':'LOW AIRSPEED';$('stall-countdown').textContent=stallSeconds>0?`RECOVER IN ${Math.max(0,Math.ceil(STALL_GRACE_SECONDS-stallSeconds))} S · INCREASE AIRSPEED`:'INCREASE AIRSPEED';}
   if(stallSeconds>=STALL_GRACE_SECONDS){health=0;explode(jet.position,2);audio.explosion();finish(false,'stall');return;}
   stepFlightAttitude(quat,flightMotion,flightControls,dt,profile,speed,airbrake,highAlpha);
   jet.quaternion.copy(quat);

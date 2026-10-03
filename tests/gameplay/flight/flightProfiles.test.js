@@ -72,6 +72,19 @@ test('stall gives ten seconds to recover and restored speed resets the timer',()
   expect(seconds).toBe(STALL_GRACE_SECONDS);
 });
 
+test('full power recovers every stalled aircraft by airspeed even with the brake engaged',()=>{
+  for(const id of Object.keys(FLIGHT_PROFILES)){
+    const profile=flightProfile(id);
+    let speed=profile.stallSpeed*.2,seconds=3;
+    for(let frame=0;frame<8*60;frame++){
+      speed=advanceAirspeed(speed,1,profile,true,0,controls(),1/60);
+      seconds=advanceStallTimer(seconds,speed,profile,1/60);
+    }
+    expect(speed).toBeGreaterThan(profile.stallSpeed);
+    expect(seconds).toBe(0);
+  }
+});
+
 test('stall weakens roll control while leaving recovery authority',()=>{
   const profile=flightProfile('a10'),cruise=createFlightMotion(),stalled=createFlightMotion();
   step(new THREE.Quaternion(),cruise,controls(0,1),profile,1,profile.cruiseSpeed);

@@ -3,9 +3,11 @@
 export function targetAirspeed(throttle,aircraftMultiplier=1,airbrake=false){
   if(typeof aircraftMultiplier==='object'){
     const profile=aircraftMultiplier;
-    // Holding the brake must be able to cross the stall threshold by itself.
-    // A low positive target leaves forward motion while the aircraft descends.
-    if(airbrake)return profile.stallSpeed*.14;
+    // The brake can induce a stall at ordinary power; full power can recover it.
+    if(airbrake){
+      const fullPower=Math.max(0,Math.min(1,(throttle-.65)/.35));
+      return profile.stallSpeed*(.14+fullPower*1.25);
+    }
     if(profile.afterburner===false){
       const power=Math.max(.2,Math.min(1,throttle));
       const target=power<=.72
