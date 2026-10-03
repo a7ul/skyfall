@@ -14,7 +14,7 @@ const templates=new Map();
 const loader=new GLTFLoader();
 
 async function loadOne(spec){
-  const gltf=await loader.loadAsync(`/assets/aircraft/${spec.model}`);
+  const gltf=await loader.loadAsync(`${import.meta.env.BASE_URL}assets/aircraft/${spec.model}`);
   const model=gltf.scene;
   prepareControlSurfaces(model,spec);
   model.updateMatrixWorld(true);

@@ -10,13 +10,14 @@ import {createBuildingIndex,distanceToFootprint} from './buildings.js';
 import {blastRubbleHeight} from '../../gameplay/combat/nuclearBlast.js';
 
 export async function createLyonWorld(scene,onProgress=()=>{},renderer,camera){
+  const asset=path=>`${import.meta.env.BASE_URL}${path}`;
   const loader=new THREE.TextureLoader();
   const [sky,lighting,collisionField,collisionBuffer,buildingData]=await Promise.all([
-    loader.loadAsync('/assets/environment/sky.webp'),
-    new HDRLoader().loadAsync('/assets/environment/sky-lighting.hdr'),
-    fetch('/assets/city/lyon/collision.json').then(r=>r.json()),
-    fetch('/assets/city/lyon/collision.bin').then(r=>r.arrayBuffer()),
-    fetch('/assets/city/lyon/buildings.json').then(r=>r.json())
+    loader.loadAsync(asset('assets/environment/sky.webp')),
+    new HDRLoader().loadAsync(asset('assets/environment/sky-lighting.hdr')),
+    fetch(asset('assets/city/lyon/collision.json')).then(r=>r.json()),
+    fetch(asset('assets/city/lyon/collision.bin')).then(r=>r.arrayBuffer()),
+    fetch(asset('assets/city/lyon/buildings.json')).then(r=>r.json())
   ]);
   const heights=new Int16Array(collisionBuffer);
   const buildingIndex=createBuildingIndex(buildingData.buildings);
@@ -28,7 +29,7 @@ export async function createLyonWorld(scene,onProgress=()=>{},renderer,camera){
   scene.add(new THREE.HemisphereLight(0xe1efff,0x5d655e,1.25));
   const sun=new THREE.DirectionalLight(0xffe7c6,1.8);sun.position.set(-500,700,-900);scene.add(sun);
 
-  const tiles=new TilesRenderer('/lyon-photomesh/tileset.json');
+  const tiles=new TilesRenderer(asset('lyon-photomesh/tileset.json'));
   // The camera gets finer visible tiles. A modest region ahead of the jet
   // loads the next blocks before they cross the frustum.
   tiles.errorTarget=9.5;
@@ -83,7 +84,7 @@ export async function createLyonWorld(scene,onProgress=()=>{},renderer,camera){
   });
   tiles.addEventListener('load-error',event=>console.warn('Lyon tile failed',event));
   scene.add(tiles.group);
-  const traffic=await createTraffic(scene,'/assets/city/lyon/traffic.json');
+  const traffic=await createTraffic(scene,asset('assets/city/lyon/traffic.json'));
   const collisionHeight=(x,z)=>{
     let height=sampleCollisionHeight(collisionField,heights,x,z);
     for(const building of buildingIndex.nearby(x,z)){

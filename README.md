@@ -9,7 +9,19 @@ bun install
 bun run dev
 ```
 
-Open the URL printed by Vite in a current Chrome or Edge build with WebGPU and GPU acceleration. For a production preview, run `bun run build && bun run preview`. The Lyon tiles require a running Vite server and internet access. Vite proxies the public tiles and converts their legacy glTF 1.0 payloads to glTF 2.0, with a small memory cache. A plain static server cannot perform this conversion. No API key, company account, or billing project is needed.
+Open the URL printed by Vite in a current Chrome or Edge build with WebGPU and GPU acceleration. For a production preview using live Lyon tiles, run `bun run build && bun run preview`. Vite proxies the public tiles and converts their legacy glTF 1.0 payloads to glTF 2.0, with a small memory cache. No API key, company account, or billing project is needed.
+
+## GitHub Pages readiness
+
+The deployment workflow in `.github/workflows/deploy-pages.yml` stays skipped while this repository is private. GitHub Free does not support Pages for a private repository; GitHub's API currently rejects enabling it for this repo. When the repo is eligible, select **Settings → Pages → Build and deployment → GitHub Actions**, then run the workflow manually or push to `main`. The expected URL is `https://a7ul.github.io/skyfall/`. Pages sites are public, including sites built from private repositories on plans that support them.
+
+For a local Pages build, run:
+
+```sh
+VITE_BASE_PATH=/skyfall/ bun run build:pages
+```
+
+This downloads and preconverts an approximately 810 MiB Lyon tile pack into `dist/lyon-photomesh/`. The generated files stay out of git. The pack covers a broad lower-detail city area, gives finer detail within roughly 2 km of the starting center, and reserves the finest tiles for a smaller core. The full 2 km radius at maximum source detail cannot fit within GitHub Pages' 1 GB published-site limit. A static server needs this preconverted pack because Lyon's upstream tile server does not allow direct cross-origin browser requests. The build checks tile references and site size before upload.
 
 ## Project layout
 
@@ -25,6 +37,7 @@ Open the URL printed by Vite in a current Chrome or Edge build with WebGPU and G
 | `public/assets/` | Aircraft, audio, Lyon data, and environment assets |
 | `tests/` | Tests grouped to match the source areas |
 | `tools/vite/` | Lyon tile conversion middleware |
+| `tools/lyon/` | Static Lyon tile pack builder for Pages |
 | `scripts/data/`, `docs/` | Data generation, design notes, and screenshots |
 
 The tile streamer gives nearby, low-altitude blocks a finer screen-space target, reduces distant detail, and preloads a small area ahead of the aircraft. Launch waits for an initial batch of city tiles (with a time limit on slow connections). Concurrent parsing is limited to avoid main-thread pauses. A device-sized tile cache and gradual frame-time adjustment keep detail from overwhelming memory on slower machines. Converted tiles are browser-cached for a day, so revisiting an area avoids another download and conversion. Add `?debug=1` in a development build to expose hidden tile and frame metrics for profiling.
