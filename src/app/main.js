@@ -11,7 +11,9 @@ import {targetAirspeed,advanceAirspeed} from '../gameplay/flight/flightPerforman
 import {chooseLockTarget} from '../gameplay/combat/targeting.js';
 import {enemyHasShot,segmentHitsSphere} from '../gameplay/combat/combatMath.js';
 import {firstHeightIntersection,resolveSurfaceContact} from '../world/lyon/collisionField.js';
-import {advanceBomb,predictBombImpact} from '../gameplay/combat/bombMath.js';
+import {advanceBomb,predictBombImpact,sampleBombPath} from '../gameplay/combat/bombMath.js';
+import {advanceMissile} from '../gameplay/combat/missileFlight.js';
+import {createMissileTrail,updateMissileTrail,disposeMissileTrail} from '../gameplay/combat/missileTrail.js';
 import {shockRadius} from '../gameplay/combat/nuclearBlast.js';
 import {createRubbleField} from '../gameplay/combat/rubbleField.js';
 
@@ -43,7 +45,7 @@ async function init(){
 }
 
 function removeObject(object){if(!object)return;scene.remove(object);if(object.userData.afterburners)return;object.traverse(child=>{if(child.isMesh){child.geometry.dispose();const materials=Array.isArray(child.material)?child.material:[child.material];for(const material of materials)material?.dispose();}});}
-function clearSceneObjects(){removeObject(jet);jet=null;removeObject(previewJet);previewJet=null;for(const t of [...radars,...enemies])removeObject(t.group);for(const m of [...projectiles,...bombProjectiles,...bullets])removeObject(m.mesh);for(const effect of nuclearEffects)disposeNuclearEffect(effect);for(const shot of enemyShots)removeObject(shot.mesh);for(const p of particles){scene.remove(p.mesh);if(!p.sharedGeometry)p.mesh.geometry.dispose();p.mesh.material.dispose();}for(const mark of damageMarks){scene.remove(mark);mark.geometry.dispose();mark.material.dispose();}for(const wreck of wrecks)removeObject(wreck.group);for(const fire of fires){scene.remove(fire.mesh);fire.mesh.material.dispose();}for(const piece of debris)removeObject(piece.mesh);world?.traffic?.reset();if(extraction)removeObject(extraction.group);radars=[];enemies=[];enemyShots=[];projectiles=[];bombProjectiles=[];nuclearEffects=[];bullets=[];particles=[];damageMarks=[];wrecks=[];fires=[];debris=[];extraction=null;blastFlash=0;$('blast-flash').style.opacity='0';$('nuke-countdown').classList.add('hidden');}
+function clearSceneObjects(){removeObject(jet);jet=null;removeObject(previewJet);previewJet=null;for(const t of [...radars,...enemies])removeObject(t.group);for(const m of [...projectiles,...bombProjectiles,...bullets])removeObject(m.mesh);for(const m of projectiles)disposeMissileTrail(scene,m.trail);for(const effect of nuclearEffects)disposeNuclearEffect(effect);for(const shot of enemyShots)removeObject(shot.mesh);for(const p of particles){scene.remove(p.mesh);if(!p.sharedGeometry)p.mesh.geometry.dispose();p.mesh.material.dispose();}for(const mark of damageMarks){scene.remove(mark);mark.geometry.dispose();mark.material.dispose();}for(const wreck of wrecks)removeObject(wreck.group);for(const fire of fires){scene.remove(fire.mesh);fire.mesh.material.dispose();}for(const piece of debris)removeObject(piece.mesh);world?.traffic?.reset();if(extraction)removeObject(extraction.group);radars=[];enemies=[];enemyShots=[];projectiles=[];bombProjectiles=[];nuclearEffects=[];bullets=[];particles=[];damageMarks=[];wrecks=[];fires=[];debris=[];extraction=null;blastFlash=0;$('blast-flash').style.opacity='0';$('nuke-countdown').classList.add('hidden');}
 function start(free=false){if(!renderer)return;audio.setGunFiring(false);clearSceneObjects();audio.init();audio.ctx?.resume();audio.setActive(true);mode=free?'free':'mission';paused=false;ended=false;phase=0;elapsed=0;kills=0;shots=0;missiles=free?99:6;bombAmmo=free?99:4;nuclearAmmo=free?Infinity:1;bombCooldown=0;health=100;throttle=free?.3:.68;speed=targetAirspeed(throttle,AIRCRAFT[selected].speed);pitch=0;yaw=0;roll=0;flightControls.pitchInput=flightControls.rollInput=flightControls.yawInput=0;quat.identity();forward.set(0,0,-1);lockTime=0;target=null;cameraMode=0;mouseActive=false;mouseX=0;mouseY=0;gamepadWasPressed=bombWasPressed=nukeWasPressed=false;airbrake=false;hudTimer=0;cityFloor=-100;cityFloorTimer=0;weaponCueTimer=0;cameraShake=0;jet=createJet(AIRCRAFT[selected]);jet.position.set(0,free?145:430,free?550:950);scene.add(jet);if(!free){radars=[createRadar(scene,-180,-320,'RELAY ALPHA',surfaceHeight(-180,-320)),createRadar(scene,520,-760,'RELAY BRAVO',surfaceHeight(520,-760))];setRadio('Viper One, this is Echo. Two hostile relay sites are jamming the Lyon evacuation corridor. Silence them.');}else{setRadio('Free flight authorized. Weapons free. Fire a missile with or without a lock.');}
   ui.menu.classList.add('hidden');ui.overlay.classList.add('hidden');ui.hud.classList.remove('hidden');$('mode-label').textContent=free?'FREE FLIGHT':'MISSION 01';$('mission-name').textContent=free?'LYON // FREE FLIGHT':'BREAK THE SILENCE';updateObjective();updateCamera(1);updateHud();audio.click();}
 function hangar(){audio.setActive(false);paused=false;mode='menu';clearSceneObjects();setPreviewJet();ui.overlay.classList.add('hidden');ui.hud.classList.add('hidden');ui.menu.classList.remove('hidden');document.exitPointerLock?.();}
@@ -166,7 +168,15 @@ function updateWeaponCue(dt){
       bombMarker.style.top=`${(-projected.y*.5+.5)*innerHeight}px`;
       bombMarker.querySelector('span').textContent=`BOMB IMPACT · ${prediction.time.toFixed(1)} S`;
     }
-  }else bombMarker.classList.add('hidden');
+    const arc=sampleBombPath(bombOrigin,bombVelocity,prediction.time);
+    const points=[];
+    for(const point of arc){
+      const screenPoint=point.project(camera);
+      if(screenPoint.z>=-1&&screenPoint.z<=1&&Math.abs(screenPoint.x)<1.2&&Math.abs(screenPoint.y)<1.2)
+        points.push(`${Math.round((screenPoint.x*.5+.5)*innerWidth)},${Math.round((-screenPoint.y*.5+.5)*innerHeight)}`);
+    }
+    $('bomb-path').setAttribute('points',show?points.join(' '):'');
+  }else{bombMarker.classList.add('hidden');$('bomb-path').setAttribute('points','');}
 }
 function fireMissile(){
   if(!jet||paused||missiles<=0||missileCooldown>0)return;
@@ -181,16 +191,21 @@ function fireMissile(){
     const fin=new THREE.Mesh(new THREE.BoxGeometry(.04,.7,.47),dark);
     fin.position.set(0,-1.25,.35);fin.rotation.y=i*Math.PI/2;fin.position.applyAxisAngle(new THREE.Vector3(0,1,0),i*Math.PI/2);mesh.add(fin);
   }
-  const motor=new THREE.Group();motor.position.y=-2;
+  const motor=new THREE.Group();motor.position.y=-2;motor.visible=false;
   const plume=new THREE.Mesh(new THREE.ConeGeometry(.27,2.1,12,1,true),new THREE.MeshBasicMaterial({color:0xffd7a2,transparent:true,opacity:.72,blending:THREE.AdditiveBlending,depthWrite:false,side:THREE.DoubleSide}));
   plume.rotation.z=Math.PI;plume.position.y=-.9;motor.add(plume);
   const core=new THREE.Mesh(new THREE.ConeGeometry(.13,1.4,10,1,true),new THREE.MeshBasicMaterial({color:0xd9f5ff,transparent:true,opacity:.88,blending:THREE.AdditiveBlending,depthWrite:false,side:THREE.DoubleSide}));
   core.rotation.z=Math.PI;core.position.y=-.65;motor.add(core);mesh.add(motor);
-  const railOffset=new THREE.Vector3((shots%2?1:-1)*2.35,-1.1,-.5).applyQuaternion(quat);
+  const side=shots%2?1:-1;
+  const railOffset=new THREE.Vector3(side*2.35,-1.1,-.5).applyQuaternion(quat);
   mesh.position.copy(jet.position).add(railOffset);
   mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),forward);
   scene.add(mesh);
-  projectiles.push({mesh,target:lockedTarget,velocity:forward.clone().multiplyScalar(speed+150),life:11,smokeTime:0,motor,rayTimer:0,cityHit:null});
+  const down=new THREE.Vector3(0,-1,0).applyQuaternion(quat);
+  const right=new THREE.Vector3(1,0,0).applyQuaternion(quat);
+  const velocity=forward.clone().multiplyScalar(speed).addScaledVector(down,18).addScaledVector(right,side*5);
+  projectiles.push({mesh,target:lockedTarget,velocity,launchDirection:forward.clone(),age:0,life:11,smokeTime:0,motor,trail:createMissileTrail(scene),rayTimer:0,cityHit:null});
+  emitSpark(mesh.position.clone().addScaledVector(down,1.5),3);
   cameraShake=Math.max(cameraShake,.15);
   audio.missile();setRadio(lockedTarget?`Fox two. Tracking ${lockedTarget.name}.`:'Fox two. Missile away, free flight.');
 }
@@ -207,14 +222,16 @@ function fireGun(dt){
 }
 function createBombMesh(nuclear){
   const group=new THREE.Group();
-  const shell=new THREE.MeshStandardMaterial({color:nuclear?0x313b31:0x4d5555,metalness:.46,roughness:.53,emissive:nuclear?0xff7837:0x000000,emissiveIntensity:0});
-  const trim=new THREE.MeshStandardMaterial({color:nuclear?0xd2ae49:0x303c42,metalness:.5,roughness:.5});
+  const shell=new THREE.MeshStandardMaterial({color:nuclear?0x343b33:0x525b58,metalness:.48,roughness:.46,emissive:nuclear?0xff7837:0x000000,emissiveIntensity:0});
+  const trim=new THREE.MeshStandardMaterial({color:nuclear?0xd2ae49:0x343e42,metalness:.7,roughness:.3});
   const radius=nuclear ? .55 : .36,length=nuclear?3.6:2.5;
   group.add(new THREE.Mesh(new THREE.CylinderGeometry(radius*.92,radius,length,12),shell));
-  const nose=new THREE.Mesh(new THREE.ConeGeometry(radius*.92,radius*1.35,12),shell);
+  const nose=new THREE.Mesh(new THREE.ConeGeometry(radius*.92,radius*1.35,12),trim);
   nose.position.y=length*.5+radius*.55;group.add(nose);
   const band=new THREE.Mesh(new THREE.CylinderGeometry(radius*1.025,radius*1.025,.16,12),trim);
   band.position.y=length*.14;group.add(band);
+  const tailBand=new THREE.Mesh(new THREE.CylinderGeometry(radius*1.03,radius*1.03,.2,12),trim);
+  tailBand.position.y=-length*.43;group.add(tailBand);
   for(let i=0;i<4;i++){
     const fin=new THREE.Mesh(new THREE.BoxGeometry(.08,length*.32,radius*.95),trim);
     const angle=i*Math.PI/2;
@@ -235,7 +252,6 @@ function dropBomb(nuclear=false){
   mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),velocity.clone().normalize());
   scene.add(mesh);
   bombProjectiles.push({mesh,velocity,nuclear,life:0,armed:false,fuse:0});
-  emitSmoke(mesh.position,2.5,.45,0xc4c9c4);
   audio.drop();
   setRadio(nuclear?'Special weapon released. Clear the impact zone.':'Bomb away. Watch the impact marker.');
   updateHud();
@@ -490,16 +506,16 @@ function updateWrecks(dt){
 function updateProjectiles(dt){
   for(let i=projectiles.length-1;i>=0;i--){
     const m=projectiles[i];m.life-=dt;
-    const missileSpeed=Math.min(920,m.velocity.length()+dt*1250);
-    const heading=m.velocity.clone().normalize();
-    if(m.target?.alive){const desired=tmp.copy(m.target.position).sub(m.mesh.position);if(m.target.type==='car')desired.y+=m.target.height*.55;heading.lerp(desired.normalize(),clamp(dt*2.8,0,1)).normalize();}
-    m.velocity.copy(heading).multiplyScalar(missileSpeed);
     const previous=m.mesh.position.clone();
-    m.mesh.position.addScaledVector(m.velocity,dt);
-    m.mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),m.velocity.clone().normalize());
-    m.motor.scale.y=.8+Math.sin(elapsed*63+i)*.12;
-    m.smokeTime+=dt;
-    if(m.smokeTime>.06){m.smokeTime=0;emitSmoke(m.mesh.position.clone().addScaledVector(m.velocity.clone().normalize(),-2.3),2.4,1.5,0xb5b9b5);}
+    const aim=m.target?.alive?m.target.position.clone().add(new THREE.Vector3(0,m.target.type==='car'?m.target.height*.55:0,0)):null;
+    const ignited=advanceMissile(m,dt,aim);
+    m.motor.visible=ignited;
+    if(ignited){
+      m.motor.scale.y=.8+Math.sin(elapsed*63+i)*.12;
+      updateMissileTrail(m.trail,m.mesh.position,camera,dt);
+      m.smokeTime+=dt;
+      if(m.smokeTime>.12){m.smokeTime=0;emitSmoke(m.mesh.position.clone().addScaledVector(m.velocity.clone().normalize(),-2.3),4.2,1.35,0xb5b9b5);}
+    }
     const direction=m.velocity.clone().normalize(),travel=m.velocity.length()*dt;
     m.rayTimer-=dt;
     if(m.rayTimer<=0){m.rayTimer=.08;m.cityHit=world?.raycastCity?.(previous,direction,m.velocity.length()*.18+8)||null;}
@@ -529,7 +545,7 @@ function updateProjectiles(dt){
       m.mesh.position.copy(impact.position);
       explode(m.mesh.position,.75);audio.explosion();setRadio(impact.collapsed?'Structural failure! Building coming down!':impact.fractured?'Structure breached. Fire and debris!':'Missile impact. Surface damaged.');m.life=0;
     }
-    if(m.life<=0){scene.remove(m.mesh);m.mesh.traverse(o=>{if(o.isMesh){o.geometry.dispose();o.material.dispose();}});projectiles.splice(i,1);}
+    if(m.life<=0){scene.remove(m.mesh);m.mesh.traverse(o=>{if(o.isMesh){o.geometry.dispose();o.material.dispose();}});disposeMissileTrail(scene,m.trail);projectiles.splice(i,1);}
   }
   for(let i=bullets.length-1;i>=0;i--){
     const bullet=bullets[i],previous=bullet.mesh.position.clone(),direction=bullet.velocity.clone().normalize();
@@ -743,6 +759,7 @@ function updateBombs(dt){
       const result=cityImpact(previous,direction,Math.min(travel,previous.distanceTo(impact)),impact,22);
       bomb.mesh.position.copy(result.position);
       explode(result.position,2);audio.explosion();
+      ignite(result.position.clone().add(new THREE.Vector3(0,2,0)),10);
       applyAreaBlast(result.position,55);
       setRadio('Bomb impact. Check target damage.');
       removeObject(bomb.mesh);bombProjectiles.splice(i,1);

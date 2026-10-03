@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 
-export const BOMB_GRAVITY = 9.81;
+// Arcade tuning: bombs clear a city pass sooner than a literal 1:1 simulation.
+export const BOMB_GRAVITY = 20;
 export const BOMB_DRAG = .008;
 
 export function advanceBomb(position, velocity, dt) {
@@ -26,4 +27,16 @@ export function predictBombImpact(origin, velocity, heightAt, maxTime = 18) {
     }
   }
   return null;
+}
+
+export function sampleBombPath(origin,velocity,time,segments=16){
+  const position=origin.clone(),motion=velocity.clone(),points=[position.clone()];
+  const steps=Math.max(segments,Math.ceil(time/.05));
+  const stride=Math.max(1,Math.round(steps/segments));
+  const dt=time/steps;
+  for(let i=1;i<=steps;i++){
+    advanceBomb(position,motion,dt);
+    if(i%stride===0||i===steps)points.push(position.clone());
+  }
+  return points;
 }

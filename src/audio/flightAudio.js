@@ -189,8 +189,8 @@ export class FlightAudio {
   warning() { this.tone(620, .19, 'sine', .08, 550); }
   missile() {
     const rate = .94 + Math.random() * .1;
-    this.play('ignition', 2.3, {rate});
     this.play('missile', 2.9, {rate});
+    this.play('ignition', 2.3, {rate, delay: .16});
   }
   drop() { this.tone(270, .11, 'triangle', .055, 130); }
   nuclear(distance=0) {
