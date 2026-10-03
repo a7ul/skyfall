@@ -11,7 +11,7 @@ bun run dev
 
 Open the URL printed by Vite in a current Chrome or Edge build with WebGPU and GPU acceleration. For a production preview, run `bun run build && bun run preview`. The Lyon tiles require a running Vite server and internet access. Vite proxies the public tiles and converts their legacy glTF 1.0 payloads to glTF 2.0, with a small memory cache. A plain static server cannot perform this conversion. No API key, company account, or billing project is needed.
 
-The tile streamer gives nearby, low-altitude blocks a finer screen-space target, reduces distant detail, and preloads a small area ahead of the aircraft. Concurrent parsing is limited to avoid main-thread pauses. A device-sized tile cache and gradual frame-time adjustment keep detail from overwhelming memory on slower machines. Converted tiles are browser-cached for a day, so revisiting an area avoids another download and conversion. Add `?debug=1` in a development build to expose hidden tile and frame metrics for profiling.
+The tile streamer gives nearby, low-altitude blocks a finer screen-space target, reduces distant detail, and preloads a small area ahead of the aircraft. Launch waits for an initial batch of city tiles (with a time limit on slow connections). Concurrent parsing is limited to avoid main-thread pauses. A device-sized tile cache and gradual frame-time adjustment keep detail from overwhelming memory on slower machines. Converted tiles are browser-cached for a day, so revisiting an area avoids another download and conversion. Add `?debug=1` in a development build to expose hidden tile and frame metrics for profiling.
 
 ## Mission
 

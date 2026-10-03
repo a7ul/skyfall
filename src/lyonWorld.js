@@ -46,6 +46,10 @@ export async function createLyonWorld(scene,onProgress=()=>{},renderer,camera){
   let loaded=0;
   let resolveReady;
   const ready=new Promise(resolve=>{resolveReady=resolve;});
+  let launchReady=false;
+  let allowEarlyReady=false;
+  const makeReady=()=>{if(!launchReady&&loaded>0){launchReady=true;resolveReady();}};
+  const launchTimeout=setTimeout(()=>{allowEarlyReady=true;makeReady();},12000);
   tiles.addEventListener('load-root-tileset',()=>onProgress(0,1));
   tiles.addEventListener('load-model',({scene:tileScene})=>{
     // Aerial textures are often viewed at a grazing angle from the jet.
@@ -55,7 +59,8 @@ export async function createLyonWorld(scene,onProgress=()=>{},renderer,camera){
         if(material?.map)material.map.anisotropy=8;
       }
     });
-    loaded++;onProgress(loaded,loaded);resolveReady();
+    loaded++;onProgress(loaded,loaded);
+    if(loaded>=90||allowEarlyReady){clearTimeout(launchTimeout);makeReady();}
   });
   tiles.addEventListener('load-error',event=>console.warn('Lyon tile failed',event));
   scene.add(tiles.group);
