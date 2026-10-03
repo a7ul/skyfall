@@ -11,6 +11,8 @@ bun run dev
 
 Open the local URL printed by Vite in a current Chrome or Edge build with WebGPU and hardware acceleration. Build with `bun run build` and serve `dist/` over HTTP. The game is WebGPU only. No API key, company account, or billing project is required. The 3D city assets are bundled locally. The broad city loads at launch; sharper cells load by distance and altitude.
 
+The menu also links to a **Lyon 2023 photomesh flight trial** at `/lyon.html`. It streams the Métropole de Lyon's public 3D Tiles through the local Vite server, which converts their older glTF 1.0 payloads for Three's WebGPU renderer and keeps a small in-memory tile cache. Run this mode with `bun run dev` or `bun run build && bun run preview`; a plain static file server cannot provide the tile conversion. Lyon uses progressive screen-space detail, starts at a slower inspection speed, and has no mission or traffic yet. It needs an internet connection to the public Lyon dataset, but no key or billing. See [docs/city-source-trials.md](docs/city-source-trials.md).
+
 ## Mission
 
 **Break the Silence:** A rogue defense network is jamming the Helsinki harbor evacuation corridor. Destroy Relay Alpha and Relay Bravo, shoot down the hostile interceptors, and fly through the green extraction gate. Hold a target near the reticle for about 1.35 seconds to lock a missile.

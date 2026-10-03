@@ -9,6 +9,8 @@
     "preview": "vite preview --host 0.0.0.0"
   },
   "dependencies": {
+    "3d-tiles-renderer": "^0.5.3",
+    "gltf-pipeline": "^4.3.1",
     "three": "0.186.1"
   },
   "devDependencies": {
