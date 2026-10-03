@@ -2,7 +2,7 @@ import {test,expect} from 'bun:test';
 import * as THREE from 'three';
 import {FLIGHT_PROFILES,FLIGHT_SPEED_SCALE,flightProfile} from '../../../src/gameplay/aircraft/flightProfiles.js';
 import {createFlightMotion,stepFlightAttitude,stepFlightPath} from '../../../src/gameplay/flight/flightMath.js';
-import {targetAirspeed,advanceAirspeed,stallSeverity,advanceStallSink} from '../../../src/gameplay/flight/flightPerformance.js';
+import {targetAirspeed,advanceAirspeed,stallSeverity,advanceStallTimer,STALL_GRACE_SECONDS} from '../../../src/gameplay/flight/flightPerformance.js';
 
 const controls=(pitchInput=0,rollInput=0,yawInput=0)=>({pitchInput,rollInput,yawInput});
 const step=(q,m,c,profile,seconds,speed=80,highAlpha=false)=>{
@@ -42,29 +42,42 @@ test('every aircraft slows by the same factor without changing relative speed ra
 test('air brake alone slows every aircraft through stall and releasing it recovers',()=>{
   for(const id of Object.keys(FLIGHT_PROFILES)){
     const profile=flightProfile(id);
-    let speed=targetAirspeed(.5,profile),sink=0;
+    let speed=targetAirspeed(.5,profile),stallSeconds=0;
     for(let frame=0;frame<420;frame++){
       speed=advanceAirspeed(speed,.5,profile,true,0,controls(),1/60);
-      sink=advanceStallSink(sink,speed,profile,1/60);
+      stallSeconds=advanceStallTimer(stallSeconds,speed,profile,1/60);
     }
     expect(speed).toBeLessThan(profile.stallSpeed);
     expect(speed).toBeGreaterThan(0);
     expect(stallSeverity(speed,profile)).toBeGreaterThan(.5);
-    expect(sink).toBeGreaterThan(10);
+    expect(stallSeconds).toBeGreaterThan(0);
+    expect(stallSeconds).toBeLessThan(STALL_GRACE_SECONDS);
     for(let frame=0;frame<420;frame++){
       speed=advanceAirspeed(speed,1,profile,false,0,controls(),1/60);
-      sink=advanceStallSink(sink,speed,profile,1/60);
+      stallSeconds=advanceStallTimer(stallSeconds,speed,profile,1/60);
     }
     expect(speed).toBeGreaterThan(profile.stallSpeed);
-    expect(sink).toBeLessThan(.01);
+    expect(stallSeconds).toBe(0);
   }
 });
 
-test('stall weakens roll control',()=>{
+test('stall gives ten seconds to recover and restored speed resets the timer',()=>{
+  const profile=flightProfile('f22'),low=profile.stallSpeed*.5,high=profile.stallSpeed*1.01;
+  let seconds=0;
+  for(let frame=0;frame<9*60;frame++)seconds=advanceStallTimer(seconds,low,profile,1/60);
+  expect(seconds).toBeCloseTo(9,5);
+  seconds=advanceStallTimer(seconds,high,profile,1/60);
+  expect(seconds).toBe(0);
+  for(let frame=0;frame<10*60;frame++)seconds=advanceStallTimer(seconds,low,profile,1/60);
+  expect(seconds).toBe(STALL_GRACE_SECONDS);
+});
+
+test('stall weakens roll control while leaving recovery authority',()=>{
   const profile=flightProfile('a10'),cruise=createFlightMotion(),stalled=createFlightMotion();
   step(new THREE.Quaternion(),cruise,controls(0,1),profile,1,profile.cruiseSpeed);
   step(new THREE.Quaternion(),stalled,controls(0,1),profile,1,profile.stallSpeed*.2);
-  expect(stalled.rollRate).toBeLessThan(cruise.rollRate*.4);
+  expect(stalled.rollRate).toBeLessThan(cruise.rollRate);
+  expect(stalled.rollRate).toBeGreaterThan(cruise.rollRate*.2);
 });
 
 test('A-10 retains responsive low-speed roll but remains slower than the F-22',()=>{

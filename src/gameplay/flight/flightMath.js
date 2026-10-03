@@ -23,19 +23,19 @@ export function compassHeading(forward){
   return ((Math.atan2(forward.x,-forward.z)*180/Math.PI)%360+360)%360;
 }
 
-export function createFlightMotion(){return {pitchRate:0,rollRate:0,yawRate:0,angleOfAttack:0,stallSink:0};}
+export function createFlightMotion(){return {pitchRate:0,rollRate:0,yawRate:0,angleOfAttack:0};}
 
 // A rate controller adds angular inertia without auto-leveling the aircraft.
 // Releasing a key settles the rotation but preserves the achieved bank.
 export function stepFlightAttitude(orientation,motion,controls,dt,profile,airspeed,airbrake=false,highAlpha=false){
   const clamp=THREE.MathUtils.clamp;
   const stall=stallSeverity(airspeed,profile);
-  const authority=clamp(airspeed/(profile.maneuverSpeed||85),profile.thrustVectoring ? .55 : .38,1.08)*(1-stall*.68);
+  const authority=clamp(airspeed/(profile.maneuverSpeed||85),profile.thrustVectoring ? .55 : .38,1.08)*(1-stall*.22);
   const structuralRate=profile.gLimit*9.81/Math.max(airspeed,57)*(airbrake?1.12:1);
   const scale=profile.gameSpeedScale||1;
   const assisted=highAlpha&&profile.thrustVectoring>0&&airspeed>38*scale&&airspeed<145*scale;
   const pitchLimit=Math.min(profile.pitchRate*authority*(assisted?1+profile.thrustVectoring*.65:1),structuralRate*(assisted?1.7:1));
-  const rollLimit=profile.rollRate*clamp(airspeed/((profile.maneuverSpeed||85)*.86),.55,1.08)*(1-stall*.72);
+  const rollLimit=profile.rollRate*clamp(airspeed/((profile.maneuverSpeed||85)*.86),.55,1.08)*(1-stall*.25);
   const yawLimit=Math.min(profile.yawRate*authority*(assisted?1.25:1),structuralRate*.85*(assisted?1.5:1));
   const commanded={pitchRate:clamp(controls.pitchInput,-1,1)*pitchLimit,rollRate:clamp(controls.rollInput,-1,1)*rollLimit,yawRate:clamp(controls.yawInput,-1,1)*yawLimit};
   const follow=1-Math.exp(-profile.response*dt);
@@ -54,7 +54,7 @@ export function stepFlightPath(velocity,noseForward,airspeed,dt,profile,highAlph
   flightPathDirection.copy(velocity).normalize();
   const scale=profile.gameSpeedScale||1;
   const assisted=highAlpha&&profile.thrustVectoring>0&&airspeed>38*scale&&airspeed<145*scale;
-  const response=profile.pathResponse*(assisted ? .21 : 1)*(1-stallSeverity(airspeed,profile)*.72);
+  const response=profile.pathResponse*(assisted ? .21 : 1)*(1-stallSeverity(airspeed,profile)*.2);
   flightPathDirection.lerp(noseForward,1-Math.exp(-response*dt)).normalize();
   velocity.copy(flightPathDirection).multiplyScalar(airspeed);
   return Math.acos(THREE.MathUtils.clamp(flightPathDirection.dot(noseForward),-1,1));

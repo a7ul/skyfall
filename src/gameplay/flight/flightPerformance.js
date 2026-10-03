@@ -49,8 +49,7 @@ export function stallSeverity(speed,profile){
   return Math.max(0,Math.min(1,(profile.stallSpeed-speed)/(profile.stallSpeed*.7)));
 }
 
-export function advanceStallSink(sinkSpeed,speed,profile,dt){
-  const stalled=stallSeverity(speed,profile);
-  const target=stalled*(5+21*stalled);
-  return sinkSpeed+(target-sinkSpeed)*(1-Math.exp(-(stalled>0?2.6:4)*dt));
+export const STALL_GRACE_SECONDS=10;
+export function advanceStallTimer(seconds,speed,profile,dt){
+  return speed<profile.stallSpeed?Math.min(STALL_GRACE_SECONDS,seconds+dt):0;
 }
