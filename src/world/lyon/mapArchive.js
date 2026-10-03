@@ -45,6 +45,22 @@ async function tileFile(directory,name,create=false){
   return current.getFileHandle(parts.at(-1),{create});
 }
 
+async function readLocalTile(directory,name,signal){
+  // File System Access reads can fail briefly while Chrome or the OS is busy.
+  // A missing file or revoked permission is permanent until the map changes.
+  for(let attempt=0;attempt<3;attempt++){
+    if(signal?.aborted)throw signal.reason;
+    try{
+      const file=await (await tileFile(directory,name)).getFile();
+      if(signal?.aborted)throw signal.reason;
+      return file;
+    }catch(error){
+      if(signal?.aborted||['NotFoundError','NotAllowedError','SecurityError'].includes(error.name)||attempt===2)throw error;
+      await new Promise(resolve=>setTimeout(resolve,80*2**attempt));
+    }
+  }
+}
+
 export function folderTileSource(directory,{coverage='complete',tilesetOverrides=new Map()}={}){
   return {
     coverage,
@@ -58,8 +74,7 @@ export function folderTileSource(directory,{coverage='complete',tilesetOverrides
           const json=tilesetOverrides.get(decoded);
           return json?new Response(json,{headers:{'Content-Type':'application/json'}}):new Response('Tileset is absent from this map snapshot.',{status:404});
         }
-        const file=await (await tileFile(directory,decoded)).getFile();
-        if(signal?.aborted)throw signal.reason;
+        const file=await readLocalTile(directory,decoded,signal);
         return new Response(file,{headers:{'Content-Type':name.endsWith('.json')?'application/json':'application/octet-stream'}});
       }catch(error){
         if(error.name!=='NotFoundError')throw error;

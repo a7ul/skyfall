@@ -34,8 +34,8 @@ export async function createLyonWorld(scene,onProgress=()=>{},renderer,camera,ma
 
   const tiles=new TilesRenderer(asset('lyon-photomesh/tileset.json'));
   if(mapArchive)tiles.registerPlugin({name:'LYON_MAP_ARCHIVE',fetchData:(url,options)=>mapArchive.fetchData(url,options)});
-  // The camera gets finer visible tiles. A modest region ahead of the jet
-  // loads the next blocks before they cross the frustum.
+  // Keep tiles under the aircraft warm as well as those ahead of it. A single
+  // look-ahead sphere left the nearby city outside the preload area at speed.
   tiles.errorTarget=9.5;
   tiles.errorFalloff=10;
   tiles.errorFalloffDensity=.001;
@@ -46,10 +46,11 @@ export async function createLyonWorld(scene,onProgress=()=>{},renderer,camera,ma
   const cacheGB=Math.min(1.15,Math.max(.7,memoryGB*.14));
   tiles.lruCache.minBytesSize=cacheGB*.72*1024**3;
   tiles.lruCache.maxBytesSize=cacheGB*1024**3;
-  const lookAhead=new SphereRegion({sphere:new THREE.Sphere(new THREE.Vector3(),300),errorTarget:12});
+  const nearby=new SphereRegion({sphere:new THREE.Sphere(new THREE.Vector3(),450),errorTarget:10});
+  const lookAhead=new SphereRegion({sphere:new THREE.Sphere(new THREE.Vector3(),450),errorTarget:12});
   const launchRegions=[
-    new SphereRegion({sphere:new THREE.Sphere(new THREE.Vector3(),380),errorTarget:11}),
-    new SphereRegion({sphere:new THREE.Sphere(new THREE.Vector3(),380),errorTarget:11}),
+    new SphereRegion({sphere:new THREE.Sphere(new THREE.Vector3(),500),errorTarget:11}),
+    new SphereRegion({sphere:new THREE.Sphere(new THREE.Vector3(),500),errorTarget:11}),
   ];
   const launchCenters=[new THREE.Vector3(0,145,550),new THREE.Vector3(0,430,950)];
   const preloader=new LoadRegionPlugin();
@@ -74,7 +75,10 @@ export async function createLyonWorld(scene,onProgress=()=>{},renderer,camera,ma
   let launchIdle=0;
   const makeReady=()=>{if(!launchReady){launchReady=true;resolveReady();}};
   tiles.addEventListener('load-root-tileset',()=>onProgress(0));
-  tiles.addEventListener('load-model',({scene:tileScene})=>{
+  const retryAttempts=new Map();
+  let failedTileRetryAt=0;
+  tiles.addEventListener('load-model',({scene:tileScene,url})=>{
+    retryAttempts.delete(String(url));
     // Aerial textures are often viewed at a grazing angle from the jet.
     tileScene?.traverse(object=>{
       if(!object.isMesh)return;
@@ -92,11 +96,23 @@ export async function createLyonWorld(scene,onProgress=()=>{},renderer,camera,ma
     loadedScenes.delete(tileScene);
     pendingDamageScenes.delete(tileScene);
   });
-  let missingTileErrors=0;
+  let tileLoadErrors=0,missingPackTiles=0;
   tiles.addEventListener('load-error',event=>{
-    missingTileErrors++;
-    if(missingTileErrors<=3)console.warn('Lyon map tile unavailable',event);
-    else if(missingTileErrors===4)console.warn('Further unavailable map tiles are suppressed. The selected pack may cover only the central demo area.');
+    tileLoadErrors++;
+    const name=event.error?.name;
+    const missing=/error code 404/.test(event.error?.message||'')||name==='NotFoundError';
+    if(missing)missingPackTiles++;
+    const permanent=missing||name==='NotAllowedError'||name==='SecurityError';
+    if(!permanent){
+      const key=String(event.url),attempt=retryAttempts.get(key)||0;
+      if(attempt<2){
+        retryAttempts.set(key,attempt+1);
+        const due=performance.now()+(attempt===0?1000:3000);
+        failedTileRetryAt=failedTileRetryAt?Math.min(failedTileRetryAt,due):due;
+      }
+    }
+    if(tileLoadErrors<=3)console.warn('Lyon map tile unavailable',event);
+    else if(tileLoadErrors===4)console.warn('Further unavailable map tiles are suppressed. The selected pack may cover only the central demo area.');
   });
   scene.add(tiles.group);
   const traffic=await createTraffic(scene,asset('assets/city/lyon/traffic.json'));
@@ -243,6 +259,7 @@ export async function createLyonWorld(scene,onProgress=()=>{},renderer,camera,ma
     traffic.update(dt,position);
     if(!position)return;
     if(!inFlight){
+      preloader.removeRegion(nearby);
       preloader.removeRegion(lookAhead);
       tiles.group.updateMatrixWorld();
       inverse.copy(tiles.group.matrixWorld).invert();
@@ -253,9 +270,11 @@ export async function createLyonWorld(scene,onProgress=()=>{},renderer,camera,ma
       return;
     }
     for(const region of launchRegions)preloader.removeRegion(region);
+    preloader.addRegion(nearby);
     preloader.addRegion(lookAhead);
     tiles.group.updateMatrixWorld();
     inverse.copy(tiles.group.matrixWorld).invert();
+    nearby.sphere.center.copy(position).applyMatrix4(inverse);
     ahead.copy(position);
     if(direction)ahead.addScaledVector(direction,Math.min(700,Math.max(180,speed*3)));
     lookAhead.sphere.center.copy(ahead).applyMatrix4(inverse);
@@ -268,6 +287,10 @@ export async function createLyonWorld(scene,onProgress=()=>{},renderer,camera,ma
     }
     const desired=tileErrorTarget(altitude,frameAverage,tiles.stats.refused>0,inFlight);
     tiles.errorTarget=approachTileError(tiles.errorTarget,desired,Math.min(frameMs/1000,.05));
+    if(failedTileRetryAt&&performance.now()>=failedTileRetryAt){
+      failedTileRetryAt=0;
+      tiles.resetFailedTiles();
+    }
     camera.updateMatrixWorld();tiles.update();
     if(!launchReady){
       const stats=tiles.stats;
@@ -294,7 +317,7 @@ export async function createLyonWorld(scene,onProgress=()=>{},renderer,camera,ma
     tiles,traffic,collisionHeight,visualHeight,raycastCity,collapseBuildingAt,blastBuildingCandidates,blastRubbleSites,flattenArea,replayDamage,resetDamage,ready,
     city:{get loadedCount(){return loaded;}},
     update,updateTiles,dispose,
-    get quality(){const sorted=[...frameSamples].sort((a,b)=>a-b);return {errorTarget:tiles.errorTarget,frameMs:frameAverage,p95FrameMs:sorted[Math.floor(sorted.length*.95)]??0,cacheMB:Math.round(tiles.lruCache.cachedBytes/1048576),cacheLimitMB:Math.round(tiles.lruCache.maxBytesSize/1048576),deviceMemoryGB:navigator.deviceMemory??null,missingTileErrors,...tiles.stats};},
+    get quality(){const sorted=[...frameSamples].sort((a,b)=>a-b);return {errorTarget:tiles.errorTarget,frameMs:frameAverage,p95FrameMs:sorted[Math.floor(sorted.length*.95)]??0,cacheMB:Math.round(tiles.lruCache.cachedBytes/1048576),cacheLimitMB:Math.round(tiles.lruCache.maxBytesSize/1048576),deviceMemoryGB:navigator.deviceMemory??null,tileLoadErrors,missingPackTiles,retryQueued:!!failedTileRetryAt,...tiles.stats};},
     setResolution
   };
 }

@@ -1,6 +1,6 @@
 import {describe,expect,test} from 'bun:test';
 import {BlobWriter,TextReader,ZipWriter} from '@zip.js/zip.js';
-import {mapZipFilesIn,openMapArchives} from '../../../src/world/lyon/mapArchive.js';
+import {folderTileSource,mapZipFilesIn,openMapArchives} from '../../../src/world/lyon/mapArchive.js';
 
 class MemoryFileHandle{
   kind='file';
@@ -36,6 +36,21 @@ async function pack(name,files){
 }
 
 describe('Lyon map ZIP reader',()=>{
+  test('retries a temporary local tile read failure',async()=>{
+    const directory=new MemoryDirectory();
+    const handle=new MemoryFileHandle('tile.b3dm',new File(['mesh'],'tile.b3dm'));
+    const read=handle.getFile.bind(handle);
+    let attempts=0;
+    handle.getFile=async()=>{
+      if(++attempts<3)throw new DOMException('File is temporarily busy','NotReadableError');
+      return read();
+    };
+    directory.items.set('tile.b3dm',handle);
+    const response=await folderTileSource(directory).fetchData('http://localhost/lyon-photomesh/tile.b3dm');
+    expect(await response.text()).toBe('mesh');
+    expect(attempts).toBe(3);
+  });
+
   test('loads root and detailed tiles from separate selected parts',async()=>{
     const first=await pack('part-01.zip',{'tileset.json':'{"root":1}','pyramid/tileset.json':'{"pyramid":1}','skyfall-map.json':JSON.stringify({map:'lyon',format:1,coverage:'complete',parts:['part-01.zip','part-02.zip']})});
     const second=await pack('part-02.zip',{'Tile-1/u-00000.b3dm':'tile bytes'});
