@@ -15,6 +15,8 @@ Open the URL printed by Vite in a current Chrome or Edge build with WebGPU and G
 
 The deployment workflow in `.github/workflows/deploy-pages.yml` stays skipped while this repository is private. GitHub Free does not support Pages for a private repository; GitHub's API currently rejects enabling it for this repo. When the repo is eligible, select **Settings → Pages → Build and deployment → GitHub Actions**, then run the workflow manually or push to `main`. The expected URL is `https://a7ul.github.io/skyfall/`. Pages sites are public, including sites built from private repositories on plans that support them.
 
+The fighter `.glb` models and HDR sky use Git LFS. Install Git LFS before cloning or run `git lfs pull` after cloning; the Pages workflow pulls and checks these files before building. Old, unused Helsinki photomesh and orthophotos were removed from Git history so normal clones do not download them. The Lyon tile pack is generated for deployment and is never checked into Git or LFS.
+
 For a local Pages build, run:
 
 ```sh

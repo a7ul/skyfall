@@ -15,6 +15,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          lfs: true
+      - name: Restore large game assets
+        run: git lfs pull && git lfs fsck
       - uses: oven-sh/setup-bun@v2
       - run: bun install --frozen-lockfile
       - name: Build app and static Lyon tiles
