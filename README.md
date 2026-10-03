@@ -10,7 +10,7 @@ This project asks how far modern browser graphics and AI-assisted development ca
 
 ## Play in Chrome
 
-Open **[Skyfall Protocol](https://atulr.com/skyfall/)** in desktop Chrome, then follow the launch screen:
+Open **[Skyfall Protocol on GitHub Pages](https://a7ul.github.io/skyfall/)** in desktop Chrome, then follow the launch screen:
 
 | Step | What to do |
 | --- | --- |
