@@ -6,15 +6,21 @@ This project asks how far modern browser graphics and AI-assisted development ca
 
 ## Gameplay video
 
+**Click to play**
 
-### Low flight
-![F-22 flying](https://github.com/user-attachments/assets/0bdd5ac0-522b-4679-9e96-28e8b31f2b6d)
+[![Watch the video](https://github.com/user-attachments/assets/0bdd5ac0-522b-4679-9e96-28e8b31f2b6d)](https://www.youtube.com/watch?v=rYtCxOaIVug)
+
 
 ### Low flight over Lyon
 ![F-22 flying low over Lyon](docs/media/gameplay-city.jpg)
 
 ### River approach
 ![F-22 approaching the river in Lyon](docs/media/gameplay-river.jpg)
+
+
+### Low flight
+![F-22 flying](https://github.com/user-attachments/assets/0bdd5ac0-522b-4679-9e96-28e8b31f2b6d)
+
 
 ## Play in Chrome
 
