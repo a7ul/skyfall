@@ -5,6 +5,7 @@ import {LoadRegionPlugin,ReorientationPlugin,SphereRegion} from '3d-tiles-render
 import {createTraffic} from './traffic.js';
 import {sampleCollisionHeight} from './collisionField.js';
 import {approachTileError,tileErrorTarget} from './tileQuality.js';
+import {fractureMesh} from './destruction.js';
 
 export async function createLyonWorld(scene,onProgress=()=>{},renderer,camera){
   const loader=new THREE.TextureLoader();
@@ -44,6 +45,11 @@ export async function createLyonWorld(scene,onProgress=()=>{},renderer,camera){
   const setResolution=()=>tiles.setResolution(camera,Math.floor(innerWidth*renderer.getPixelRatio()),Math.floor(innerHeight*renderer.getPixelRatio()));
   setResolution();
   let loaded=0;
+  const damageSites=[];
+  const loadedScenes=new Set();
+  const pendingDamageScenes=new Set();
+  const appliedDamage=new WeakMap();
+  let damageId=0;
   let resolveReady;
   const ready=new Promise(resolve=>{resolveReady=resolve;});
   let launchReady=false;
@@ -60,7 +66,15 @@ export async function createLyonWorld(scene,onProgress=()=>{},renderer,camera){
       }
     });
     loaded++;onProgress(loaded,loaded);
+    if(tileScene){
+      loadedScenes.add(tileScene);
+      if(damageSites.length)pendingDamageScenes.add(tileScene);
+    }
     if(loaded>=90||allowEarlyReady){clearTimeout(launchTimeout);makeReady();}
+  });
+  tiles.addEventListener('dispose-model',({scene:tileScene})=>{
+    loadedScenes.delete(tileScene);
+    pendingDamageScenes.delete(tileScene);
   });
   tiles.addEventListener('load-error',event=>console.warn('Lyon tile failed',event));
   scene.add(tiles.group);
@@ -70,6 +84,40 @@ export async function createLyonWorld(scene,onProgress=()=>{},renderer,camera){
   // photomesh for aircraft clearance and visible weapon impact placement.
   const cityRay=new THREE.Raycaster();cityRay.firstHitOnly=true;
   const down=new THREE.Vector3(0,-1,0);
+  const sphere=new THREE.Sphere();
+  function applyStoredDamage(tileScene){
+    const originalParent=tileScene.parent;
+    if(!originalParent)tileScene.parent=tiles.group;
+    try{
+      tileScene.updateWorldMatrix(true,true);
+      tileScene.traverse(mesh=>{
+        if(!mesh.isMesh||!mesh.geometry?.getAttribute('position'))return;
+        if(!mesh.geometry.boundingSphere)mesh.geometry.computeBoundingSphere();
+        sphere.copy(mesh.geometry.boundingSphere).applyMatrix4(mesh.matrixWorld);
+        let applied=appliedDamage.get(mesh);
+        for(const site of damageSites){
+          if(applied?.has(site.id)||sphere.center.distanceTo(site.point)>sphere.radius+site.radius)continue;
+          fractureMesh(mesh,site.point,site.radius,{makeFragments:false});
+          if(!applied){applied=new Set();appliedDamage.set(mesh,applied);}
+          applied.add(site.id);
+        }
+      });
+    }finally{
+      if(!originalParent)tileScene.parent=null;
+    }
+  }
+  function fractureCity(hit,radius=12){
+    if(!hit?.object?.isMesh)return [];
+    const site={id:++damageId,point:hit.point.clone(),radius};
+    damageSites.push(site);
+    if(damageSites.length>120)damageSites.shift();
+    for(const tileScene of loadedScenes)pendingDamageScenes.add(tileScene);
+    const fragments=fractureMesh(hit.object,site.point,radius,{faceIndex:hit.faceIndex});
+    let applied=appliedDamage.get(hit.object);
+    if(!applied){applied=new Set();appliedDamage.set(hit.object,applied);}
+    applied.add(site.id);
+    return fragments;
+  }
   function raycastCity(origin,direction,maxDistance=1200){
     cityRay.set(origin,direction);
     cityRay.far=maxDistance;
@@ -102,9 +150,15 @@ export async function createLyonWorld(scene,onProgress=()=>{},renderer,camera){
     const desired=tileErrorTarget(altitude,frameAverage,tiles.stats.refused>0,inFlight);
     tiles.errorTarget=approachTileError(tiles.errorTarget,desired,Math.min(frameMs/1000,.05));
     camera.updateMatrixWorld();tiles.update();
+    if(damageSites.length&&pendingDamageScenes.size){
+      tiles.group.updateWorldMatrix(true,false);
+      const tileScene=pendingDamageScenes.values().next().value;
+      pendingDamageScenes.delete(tileScene);
+      applyStoredDamage(tileScene);
+    }
   }
   return {
-    tiles,traffic,collisionHeight,visualHeight,raycastCity,ready,
+    tiles,traffic,collisionHeight,visualHeight,raycastCity,fractureCity,ready,
     city:{get loadedCount(){return loaded;}},
     update,updateTiles,
     get quality(){const sorted=[...frameSamples].sort((a,b)=>a-b);return {errorTarget:tiles.errorTarget,frameMs:frameAverage,p95FrameMs:sorted[Math.floor(sorted.length*.95)]??0,cacheMB:Math.round(tiles.lruCache.cachedBytes/1048576),cacheLimitMB:Math.round(tiles.lruCache.maxBytesSize/1048576),deviceMemoryGB:navigator.deviceMemory??null,...tiles.stats};},

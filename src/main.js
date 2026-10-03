@@ -16,7 +16,7 @@ const ui={menu:$('menu'),hud:$('hud'),overlay:$('overlay'),gpu:$('gpu-status'),o
 const audio=new FlightAudio();
 const scene=new THREE.Scene();
 const camera=new THREE.PerspectiveCamera(67,innerWidth/innerHeight,.5,50000);
-let renderer,world,selected=0,jet,previewJet,mode='menu',paused=false,ended=false,phase=0,elapsed=0,kills=0,shots=0,missiles=6,health=100,throttle=.55,speed=68,pitch=0,yaw=0,roll=0,gunTime=0,gunCooldown=0,missileCooldown=0,lockTime=0,target=null,radars=[],enemies=[],enemyShots=[],extraction=null,projectiles=[],bullets=[],particles=[],damageMarks=[],wrecks=[],cameraMode=0,radioTime=0,radioText='',lastWarning=0,mouseX=0,mouseY=0,mouseActive=false,gamepadWasPressed=false,airbrake=false,hudTimer=0,cityFloor=-100,cityFloorTimer=0,weaponCueTimer=0,cameraShake=0;
+let renderer,world,selected=0,jet,previewJet,mode='menu',paused=false,ended=false,phase=0,elapsed=0,kills=0,shots=0,missiles=6,health=100,throttle=.55,speed=68,pitch=0,yaw=0,roll=0,gunTime=0,gunCooldown=0,missileCooldown=0,lockTime=0,target=null,radars=[],enemies=[],enemyShots=[],extraction=null,projectiles=[],bullets=[],particles=[],damageMarks=[],wrecks=[],fires=[],debris=[],cameraMode=0,radioTime=0,radioText='',lastWarning=0,mouseX=0,mouseY=0,mouseActive=false,gamepadWasPressed=false,airbrake=false,hudTimer=0,cityFloor=-100,cityFloorTimer=0,weaponCueTimer=0,cameraShake=0;
 const flightControls={pitchInput:0,rollInput:0,yawInput:0};
 const keys=new Set();const forward=new THREE.Vector3(),quat=new THREE.Quaternion(),tmp=new THREE.Vector3(),up=new THREE.Vector3(0,1,0);const euler=new THREE.Euler(0,0,0,'YXZ');const clock=new THREE.Clock();
 const clamp=THREE.MathUtils.clamp;
@@ -39,7 +39,7 @@ async function init(){
 }
 
 function removeObject(object){if(!object)return;scene.remove(object);if(object.userData.afterburners)return;object.traverse(child=>{if(child.isMesh){child.geometry.dispose();const materials=Array.isArray(child.material)?child.material:[child.material];for(const material of materials)material?.dispose();}});}
-function clearSceneObjects(){removeObject(jet);jet=null;removeObject(previewJet);previewJet=null;for(const t of [...radars,...enemies])removeObject(t.group);for(const m of [...projectiles,...bullets])removeObject(m.mesh);for(const shot of enemyShots)removeObject(shot.mesh);for(const p of particles){scene.remove(p.mesh);if(!p.sharedGeometry)p.mesh.geometry.dispose();p.mesh.material.dispose();}for(const mark of damageMarks){scene.remove(mark);mark.geometry.dispose();mark.material.dispose();}for(const wreck of wrecks)removeObject(wreck.group);world?.traffic?.reset();if(extraction)removeObject(extraction.group);radars=[];enemies=[];enemyShots=[];projectiles=[];bullets=[];particles=[];damageMarks=[];wrecks=[];extraction=null;}
+function clearSceneObjects(){removeObject(jet);jet=null;removeObject(previewJet);previewJet=null;for(const t of [...radars,...enemies])removeObject(t.group);for(const m of [...projectiles,...bullets])removeObject(m.mesh);for(const shot of enemyShots)removeObject(shot.mesh);for(const p of particles){scene.remove(p.mesh);if(!p.sharedGeometry)p.mesh.geometry.dispose();p.mesh.material.dispose();}for(const mark of damageMarks){scene.remove(mark);mark.geometry.dispose();mark.material.dispose();}for(const wreck of wrecks)removeObject(wreck.group);for(const fire of fires){scene.remove(fire.mesh);fire.mesh.material.dispose();}for(const piece of debris)removeObject(piece.mesh);world?.traffic?.reset();if(extraction)removeObject(extraction.group);radars=[];enemies=[];enemyShots=[];projectiles=[];bullets=[];particles=[];damageMarks=[];wrecks=[];fires=[];debris=[];extraction=null;}
 function start(free=false){if(!renderer)return;audio.setGunFiring(false);clearSceneObjects();audio.init();audio.ctx?.resume();audio.setActive(true);mode=free?'free':'mission';paused=false;ended=false;phase=0;elapsed=0;kills=0;shots=0;missiles=free?99:6;health=100;throttle=free?.3:.68;speed=targetAirspeed(throttle,AIRCRAFT[selected].speed);pitch=0;yaw=0;roll=0;flightControls.pitchInput=flightControls.rollInput=flightControls.yawInput=0;quat.identity();forward.set(0,0,-1);lockTime=0;target=null;cameraMode=0;mouseActive=false;mouseX=0;mouseY=0;gamepadWasPressed=false;airbrake=false;hudTimer=0;cityFloor=-100;cityFloorTimer=0;weaponCueTimer=0;cameraShake=0;jet=createJet(AIRCRAFT[selected]);jet.position.set(0,free?145:430,free?550:950);scene.add(jet);if(!free){radars=[createRadar(scene,-180,-320,'RELAY ALPHA',surfaceHeight(-180,-320)),createRadar(scene,520,-760,'RELAY BRAVO',surfaceHeight(520,-760))];setRadio('Viper One, this is Echo. Two hostile relay sites are jamming the Lyon evacuation corridor. Silence them.');}else{setRadio('Free flight authorized. Weapons free. Fire a missile with or without a lock.');}
   ui.menu.classList.add('hidden');ui.overlay.classList.add('hidden');ui.hud.classList.remove('hidden');$('mode-label').textContent=free?'FREE FLIGHT':'MISSION 01';$('mission-name').textContent=free?'LYON // FREE FLIGHT':'BREAK THE SILENCE';updateObjective();updateCamera(1);updateHud();audio.click();}
 function hangar(){audio.setActive(false);paused=false;mode='menu';clearSceneObjects();setPreviewJet();ui.overlay.classList.add('hidden');ui.hud.classList.add('hidden');ui.menu.classList.remove('hidden');document.exitPointerLock?.();}
@@ -53,8 +53,8 @@ function onTargetDestroyed(t){
   if(t.type==='car'){destroyCar(t);return;}
   t.alive=false;kills++;
   if(t.type==='radar'){
-    t.dish.visible=false;t.beacon.visible=false;
-    t.group.traverse(o=>{if(o.isMesh&&o.material?.color)o.material.color.multiplyScalar(.55)});
+    breakRadar(t);
+    ignite(t.position,12);
   }else scene.remove(t.group);
   explode(t.position,1.5);audio.explosion();
   const remaining=t.type==='radar'?radars.filter(r=>r.alive).length:enemies.filter(e=>e.alive).length;
@@ -257,13 +257,100 @@ function markDamage(position,normal=new THREE.Vector3(0,1,0),size=10){
   mesh.position.copy(position).addScaledVector(normal,.18);scene.add(mesh);damageMarks.push(mesh);
   if(damageMarks.length>100){const old=damageMarks.shift();scene.remove(old);old.geometry.dispose();old.material.dispose();}
 }
+function addDebris(mesh,impact,floor=0){
+  scene.add(mesh);
+  const outward=mesh.position.clone().sub(impact);
+  outward.y=Math.max(.2,outward.y*.3);
+  outward.normalize();
+  const velocity=outward.multiplyScalar(8+Math.random()*20).add(new THREE.Vector3((Math.random()-.5)*9,6+Math.random()*13,(Math.random()-.5)*9));
+  debris.push({mesh,velocity,spin:new THREE.Vector3((Math.random()-.5)*3,(Math.random()-.5)*3,(Math.random()-.5)*3),floor,age:0,settled:false});
+  while(debris.length>130)removeObject(debris.shift().mesh);
+}
+function breakRadar(target){
+  target.group.updateWorldMatrix(true,true);
+  const meshes=[];
+  target.group.traverse(child=>{if(child.isMesh)meshes.push(child);});
+  for(const child of meshes){
+    const material=()=>Array.isArray(child.material)?child.material.map(m=>m.clone()):child.material.clone();
+    const parameters=child.geometry.parameters;
+    if(child.geometry.type==='CylinderGeometry'&&parameters?.height>35){
+      const base=new THREE.Vector3(),rotation=new THREE.Quaternion(),scale=new THREE.Vector3();
+      child.getWorldPosition(base);child.getWorldQuaternion(rotation);child.getWorldScale(scale);
+      const count=4,height=parameters.height/count;
+      for(let i=0;i<count;i++){
+        const bottom=parameters.radiusBottom+(parameters.radiusTop-parameters.radiusBottom)*i/count;
+        const top=parameters.radiusBottom+(parameters.radiusTop-parameters.radiusBottom)*(i+1)/count;
+        const piece=new THREE.Mesh(new THREE.CylinderGeometry(top,bottom,height,10),material());
+        const offset=new THREE.Vector3(0,-parameters.height/2+height*(i+.5),0).applyQuaternion(rotation);
+        piece.position.copy(base).add(offset);piece.quaternion.copy(rotation);piece.scale.copy(scale);
+        addDebris(piece,target.position,target.group.position.y);
+      }
+    }else{
+      const piece=new THREE.Mesh(child.geometry.clone(),material());
+      child.getWorldPosition(piece.position);child.getWorldQuaternion(piece.quaternion);child.getWorldScale(piece.scale);
+      addDebris(piece,target.position,target.group.position.y);
+    }
+  }
+  removeObject(target.group);
+}
+function ignite(position,size=12){
+  const existing=fires.find(fire=>fire.mesh.position.distanceTo(position)<size*.7);
+  if(existing){existing.size=Math.max(existing.size,size);return;}
+  const mesh=new THREE.Sprite(new THREE.SpriteMaterial({map:fireTexture,color:0xff9a4a,transparent:true,opacity:.8,depthWrite:false,blending:THREE.AdditiveBlending}));
+  mesh.position.copy(position);mesh.scale.set(size*.7,size,1);scene.add(mesh);
+  fires.push({mesh,size,smoke:Math.random()*.2,age:0});
+  if(fires.length>24){const old=fires.shift();scene.remove(old.mesh);old.mesh.material.dispose();}
+}
+function updateDestruction(dt){
+  for(const piece of debris){
+    if(piece.settled)continue;
+    piece.age+=dt;
+    const previousHeight=piece.mesh.position.y;
+    piece.velocity.y-=21*dt;
+    piece.mesh.position.addScaledVector(piece.velocity,dt);
+    piece.mesh.rotation.x+=piece.spin.x*dt;
+    piece.mesh.rotation.y+=piece.spin.y*dt;
+    piece.mesh.rotation.z+=piece.spin.z*dt;
+    const rooftop=world?.collisionHeight?.(piece.mesh.position.x,piece.mesh.position.z)??-100;
+    const floor=previousHeight>rooftop+.1?Math.max(piece.floor,rooftop):piece.floor;
+    if(piece.mesh.position.y<=floor){
+      piece.mesh.position.y=floor;
+      piece.velocity.y=Math.abs(piece.velocity.y)*.2;
+      piece.velocity.x*=.58;piece.velocity.z*=.58;
+      piece.spin.multiplyScalar(.6);
+      if(Math.abs(piece.velocity.y)<1.5||piece.age>8)piece.settled=true;
+    }
+    if(piece.age>12)piece.settled=true;
+  }
+  for(const fire of fires){
+    fire.age+=dt;fire.smoke-=dt;
+    const flicker=1+Math.sin(fire.age*17)*.12+Math.sin(fire.age*29)*.08;
+    fire.mesh.scale.set(fire.size*.7*flicker,fire.size*flicker,1);
+    fire.mesh.material.opacity=.72+Math.sin(fire.age*21)*.1;
+    if(fire.smoke<=0){
+      fire.smoke=.2+Math.random()*.13;
+      emitSmoke(fire.mesh.position.clone().add(new THREE.Vector3((Math.random()-.5)*2,fire.size*.36,(Math.random()-.5)*2)),fire.size*.8,2.4,0x2b2d2d);
+      if(Math.random()<.3)emitSpark(fire.mesh.position.clone().add(new THREE.Vector3(0,fire.size*.3,0)),fire.size*.3);
+    }
+  }
+}
 function cityImpact(origin,direction,distance,fallback,size=10){
-  const hit=world?.raycastCity?.(origin,direction,Math.max(5,distance+8));
+  const hit=world?.raycastCity?.(origin,direction,Math.max(5,distance+(size>=8?35:8)));
   let position=fallback,normal=new THREE.Vector3(0,1,0);
   if(hit){position=hit.point;normal=hit.face?.normal?.clone().transformDirection(hit.object.matrixWorld)||normal;if(normal.dot(direction)>0)normal.negate();}
-  markDamage(position,normal,size);
+  let fragments=[];
+  if(size>=8&&hit&&position.y>3){
+    fragments=world?.fractureCity?.(hit,size*.9)||[];
+    for(const fragment of fragments){
+      const mesh=new THREE.Mesh(fragment.geometry,fragment.material);
+      mesh.position.copy(fragment.position);
+      addDebris(mesh,position);
+    }
+  }
+  if(!fragments.length)markDamage(position,normal,size);
+  if(size>=8)ignite(position.clone().addScaledVector(normal,1.2),size);
   for(const car of world?.traffic?.blast?.(position,size*1.5)||[])destroyCar(car);
-  return position;
+  return {position,fractured:fragments.length>0};
 }
 function destroyCar(car){
   const hit=world?.traffic?.destroy(car);
@@ -328,8 +415,9 @@ function updateProjectiles(dt){
       m.life=0;
     }else if(obstruction<Infinity){
       m.mesh.position.copy(meshHit&&meshDistance<=obstruction?meshHit.point:previous.clone().addScaledVector(direction,obstruction));
-      cityImpact(previous,direction,obstruction,m.mesh.position,14);
-      explode(m.mesh.position,.75);audio.explosion();setRadio('Missile impact. Surface damaged.');m.life=0;
+      const impact=cityImpact(previous,direction,obstruction,m.mesh.position,14);
+      m.mesh.position.copy(impact.position);
+      explode(m.mesh.position,.75);audio.explosion();setRadio(impact.fractured?'Structure breached. Fire and debris!':'Missile impact. Surface damaged.');m.life=0;
     }
     if(m.life<=0){scene.remove(m.mesh);m.mesh.traverse(o=>{if(o.isMesh){o.geometry.dispose();o.material.dispose();}});projectiles.splice(i,1);}
   }
@@ -454,7 +542,7 @@ function updateHud(){
     if(waypoint){const d=waypoint.clone().sub(jet.position);$('objective').textContent=(phase===0?'DESTROY RELAY SITES':phase===1?'CLEAR HOSTILE AIRCRAFT':'REACH EXTRACTION')+` · ${(d.length()/1000).toFixed(1)} KM`;}
   }
 }
-function tick(dt){elapsed+=dt;gunCooldown=Math.max(0,gunCooldown-dt);missileCooldown=Math.max(0,missileCooldown-dt);updateFlight(dt);if(paused)return;updateEnemies(dt);updateEnemyShots(dt);if(paused)return;updateProjectiles(dt);updateWrecks(dt);updateCamera(dt);updateLock(dt);updateWeaponCue(dt);if(mode==='mission'&&phase===2&&extraction&&jet.position.distanceTo(extraction.position)<170)finish(true);hudTimer+=dt;if(hudTimer>.1){hudTimer=0;updateHud();}}
+function tick(dt){elapsed+=dt;gunCooldown=Math.max(0,gunCooldown-dt);missileCooldown=Math.max(0,missileCooldown-dt);updateFlight(dt);if(paused)return;updateEnemies(dt);updateEnemyShots(dt);if(paused)return;updateProjectiles(dt);updateWrecks(dt);updateDestruction(dt);updateCamera(dt);updateLock(dt);updateWeaponCue(dt);if(mode==='mission'&&phase===2&&extraction&&jet.position.distanceTo(extraction.position)<170)finish(true);hudTimer+=dt;if(hudTimer>.1){hudTimer=0;updateHud();}}
 async function animate(){const frameMs=clock.getDelta()*1000,dt=Math.min(frameMs/1000,.05),inFlight=mode!=='menu';if(!paused)world?.update(dt,jet?.position||previewJet?.position,forward,speed,inFlight);if(mode==='menu')updateMenuCamera(dt);else if(!paused)tick(dt);world?.updateTiles?.(frameMs,jet?.position.y??camera.position.y,inFlight);if(debugOutput&&performance.now()-lastDebug>1000){debugOutput.textContent=JSON.stringify({mode,position:jet?.position.toArray(),speed,quality:world?.quality});lastDebug=performance.now();}await renderer.renderAsync(scene,camera);requestAnimationFrame(animate);}
 
 window.addEventListener('resize',()=>{if(!renderer)return;camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));world?.setResolution?.();});
