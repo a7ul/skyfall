@@ -27,6 +27,11 @@ test('missile lock chooses a nearby car in the sight cone',()=>{
   expect(nearestVehicleLock([offAxis],origin,aim,500,.18)).toBeNull();
 });
 
+test('missile lock skips a car hidden behind terrain',()=>{
+  const aim=toward(0,-11,-100),blocked=car(0,0,-100),clear=car(0,0,-125);
+  expect(nearestVehicleLock([blocked,clear],origin,aim,500,.18,v=>v!==blocked)).toBe(clear);
+});
+
 test('fast missile segment still strikes a car crossed between frames',()=>{
   const moving=car(0,0,-100);
   const from={x:0,y:1,z:-78};

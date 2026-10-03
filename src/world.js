@@ -176,6 +176,6 @@ export function createRadar(scene,x,z,name){
   return {name,type:'radar',group,position:v(x,y+58,z),health:3,alive:true,dish,beacon};
 }
 
-export function createEnemy(scene,x,y,z,index){const spec=AIRCRAFT[index%2===0?2:3];const group=createJet(spec,.83);group.position.set(x,y,z);scene.add(group);return{name:index===0?'BANDIT LEAD':'BANDIT TWO',type:'enemy',group,position:group.position,health:3,alive:true,phase:index*1.8,speed:125,fireTimer:3+index*2};}
+export function createEnemy(scene,x,y,z,index){const spec=AIRCRAFT[index%2===0?2:3];const group=createJet(spec,.83);group.position.set(x,y,z);scene.add(group);return{name:index===0?'BANDIT LEAD':'BANDIT TWO',type:'enemy',group,position:group.position,health:3,alive:true,phase:index*1.8,speed:125,fireTimer:3+index*2,aimTime:0,warningCooldown:0};}
 
 export function createExtraction(scene,x,z,y=570){const group=new THREE.Group();group.position.set(x,y,z);scene.add(group);const mat=new THREE.MeshBasicMaterial({color:0x8ff2d3,transparent:true,opacity:.64,side:THREE.DoubleSide});const torus=new THREE.Mesh(new THREE.TorusGeometry(115,3,8,60),mat);torus.rotation.y=.28;group.add(torus);const inner=new THREE.Mesh(new THREE.TorusGeometry(96,1.2,6,48),mat);inner.rotation.y=.28;group.add(inner);const beam=new THREE.Mesh(new THREE.CylinderGeometry(2,2,530,8),mat);beam.position.y=-270;group.add(beam);return{group,position:group.position};}

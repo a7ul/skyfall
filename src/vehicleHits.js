@@ -24,7 +24,7 @@ export function nearestVehicleHit(vehicles,origin,direction,maxDistance){
   return best?{vehicle:best,distance:bestDistance}:null;
 }
 
-export function nearestVehicleLock(vehicles,origin,direction,maxDistance,maxAngle){
+export function nearestVehicleLock(vehicles,origin,direction,maxDistance,maxAngle,isAvailable=()=>true){
   let best=null,bestScore=Infinity;
   const minDot=Math.cos(maxAngle);
   for(const vehicle of vehicles){
@@ -35,7 +35,7 @@ export function nearestVehicleLock(vehicles,origin,direction,maxDistance,maxAngl
     const dot=(dx*direction.x+dy*direction.y+dz*direction.z)/distance;
     if(dot<minDot)continue;
     const score=(1-dot)*6000+distance;
-    if(score<bestScore){best=vehicle;bestScore=score;}
+    if(score<bestScore&&isAvailable(vehicle,distance)){best=vehicle;bestScore=score;}
   }
   return best;
 }

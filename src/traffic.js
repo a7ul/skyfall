@@ -3,6 +3,13 @@ import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js';
 import {nearestVehicleHit,nearestVehicleLock} from './vehicleHits.js';
 
 const PAINT=[0xdedfdc,0x252c34,0x9badaf,0x8c3330,0x30445c,0x605c55,0xc2c4be,0x425b52,0xd4d6d6,0x294255,0xc2a884];
+export function easeTurnaroundDistance(distance,total){
+  const approach=Math.min(14,total*.15);
+  const ease=value=>{const t=value/approach;return approach*t*t*(2-t);};
+  if(distance<approach)return ease(distance);
+  if(total-distance<approach)return total-ease(total-distance);
+  return distance;
+}
 const TYPES=[
   {length:4.5,width:1.82,height:1.45,roof:2.25,roofZ:-.12},
   {length:3.85,width:1.74,height:1.5,roof:2.35,roofZ:.16},
@@ -83,7 +90,7 @@ export async function createTraffic(scene){
       if(!car.alive)continue;
       const route=car.route,total=route.length;
       const phase=(car.offset+elapsed*car.speed)%(total*2);
-      const distance=phase<total?phase:total*2-phase;
+      const distance=easeTurnaroundDistance(phase<total?phase:total*2-phase,total);
       let lo=0,hi=route.cumulative.length-1;
       while(lo<hi-1){const mid=(lo+hi)>>1;if(route.cumulative[mid]<distance)lo=mid;else hi=mid;}
       const a=route.points[lo],b=route.points[lo+1],length=route.cumulative[lo+1]-route.cumulative[lo];
@@ -112,5 +119,5 @@ export async function createTraffic(scene){
     elapsed=0;update(0,null);
   }
   update(0,null);
-  return {update,reset,destroy,findRayHit:(origin,direction,maxDistance=1500)=>nearestVehicleHit(cars,origin,direction,maxDistance),findLockTarget:(origin,direction,maxDistance=1800)=>nearestVehicleLock(cars,origin,direction,maxDistance,.18),count:cars.length};
+  return {update,reset,destroy,findRayHit:(origin,direction,maxDistance=1500)=>nearestVehicleHit(cars,origin,direction,maxDistance),findLockTarget:(origin,direction,maxDistance=1800,isAvailable)=>nearestVehicleLock(cars,origin,direction,maxDistance,.18,isAvailable),count:cars.length};
 }

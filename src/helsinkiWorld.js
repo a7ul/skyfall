@@ -2,18 +2,23 @@ import * as THREE from 'three';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 import {HDRLoader} from 'three/addons/loaders/HDRLoader.js';
 import {createTraffic} from './traffic.js';
+import {sampleCollisionHeight} from './collisionField.js';
 
 const ASSET='/assets/helsinki/';
 export function helsinkiTerrainHeight(x,z){return Math.abs(x)>1000||Math.abs(z)>1000?0:8;}
 
 export async function createHelsinkiWorld(scene,onProgress=()=>{},renderer){
   const textureLoader=new THREE.TextureLoader();
-  const [manifest,sky,lighting,oceanNormal]=await Promise.all([
+  const [manifest,sky,lighting,oceanNormal,collisionField,collisionBuffer]=await Promise.all([
     fetch(ASSET+'manifest.json').then(r=>{if(!r.ok)throw new Error('Helsinki mesh manifest missing');return r.json();}),
     textureLoader.loadAsync('/assets/sky.webp'),
     new HDRLoader().loadAsync('/assets/sky-lighting.hdr'),
-    textureLoader.loadAsync('/assets/ocean-normal.png')
+    textureLoader.loadAsync('/assets/ocean-normal.png'),
+    fetch(ASSET+'collision.json').then(r=>r.json()),
+    fetch(ASSET+'collision.bin').then(r=>r.arrayBuffer())
   ]);
+  const collisionHeights=new Int16Array(collisionBuffer);
+  if(collisionHeights.length!==collisionField.width*collisionField.depth)throw new Error('Helsinki collision field is incomplete');
   sky.mapping=THREE.EquirectangularReflectionMapping;sky.colorSpace=THREE.SRGBColorSpace;
   lighting.mapping=THREE.EquirectangularReflectionMapping;
   scene.background=sky;scene.backgroundIntensity=.86;scene.environment=lighting;scene.environmentIntensity=.68;
@@ -140,5 +145,5 @@ export async function createHelsinkiWorld(scene,onProgress=()=>{},renderer){
     candidates.sort((a,b)=>a.priority-b.priority);
     for(const {tile,tier} of candidates.slice(0,2-pending.size))loadTile(tile,tier);
   }
-  return {sea,traffic,city:{get loadedCount(){return overview.length+loaded.size;}},update,warmup};
+  return {sea,traffic,collisionHeight:(x,z)=>sampleCollisionHeight(collisionField,collisionHeights,x,z),city:{get loadedCount(){return overview.length+loaded.size;}},update,warmup};
 }

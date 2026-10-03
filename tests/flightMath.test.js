@@ -24,27 +24,29 @@ test('bank then pull turns toward the bank',()=>{
   expect(f(right).x).toBeGreaterThan(0);
 });
 
-test('pitch stops at its limit while bank can pass through inverted flight',()=>{
-  const pitch=new THREE.Quaternion(),bank=new THREE.Quaternion();
-  let inverted=false;
-  for(let i=0;i<400;i++){
-    applyFlightInput(pitch,input(1),.05,1);
-    applyFlightInput(bank,input(0,1),.05,1);
-    if(new THREE.Vector3(0,1,0).applyQuaternion(bank).y<-.98)inverted=true;
+test('pitch completes a full loop without snapping at vertical',()=>{
+  const pitch=new THREE.Quaternion();
+  const steps=360,total=2*Math.PI/.86;
+  let pastVertical=false,inverted=false;
+  for(let i=0;i<steps;i++){
+    applyFlightInput(pitch,input(1),total/steps,1,55);
+    const nose=f(pitch);
+    if(nose.z>.1)pastVertical=true;
+    if(new THREE.Vector3(0,1,0).applyQuaternion(pitch).y<-.98)inverted=true;
   }
-  const pe=new THREE.Euler().setFromQuaternion(pitch,'YXZ');
-  expect(THREE.MathUtils.radToDeg(pe.x)).toBeCloseTo(75,4);
+  expect(pastVertical).toBe(true);
   expect(inverted).toBe(true);
+  expect(f(pitch).distanceTo(new THREE.Vector3(0,0,-1))).toBeLessThan(.001);
 });
 
 test('a held bank completes a full roll and continues',()=>{
   const bank=new THREE.Quaternion();
-  const total=2*Math.PI/1.23;
+  const total=2*Math.PI/1.55;
   const steps=240;
-  for(let i=0;i<steps;i++)applyFlightInput(bank,input(0,1),total/steps,1);
+  for(let i=0;i<steps;i++)applyFlightInput(bank,input(0,1),total/steps,1,55);
   expect(new THREE.Vector3(0,1,0).applyQuaternion(bank).distanceTo(new THREE.Vector3(0,1,0))).toBeLessThan(.001);
-  applyFlightInput(bank,input(0,1),.25,1);
-  expect(new THREE.Vector3(0,1,0).applyQuaternion(bank).x).toBeLessThan(-.25);
+  applyFlightInput(bank,input(0,1),.25,1,55);
+  expect(new THREE.Vector3(0,1,0).applyQuaternion(bank).x).toBeLessThan(-.35);
 });
 
 test('yaw, pitch, and roll affect distinct axes',()=>{
@@ -66,4 +68,10 @@ test('combined inputs have a bounded total control rate',()=>{
   const combinedRoll=new THREE.Euler().setFromQuaternion(combined,'YXZ').z;
   expect(combinedRoll).toBeGreaterThan(0);
   expect(combinedRoll).toBeLessThan(soloRoll);
+});
+
+test('air brake gives more turn authority at the same speed',()=>{
+  const normal=applyFlightInput(new THREE.Quaternion(),input(1),.25,1,90,false);
+  const braking=applyFlightInput(new THREE.Quaternion(),input(1),.25,1,90,true);
+  expect(f(braking).y).toBeGreaterThan(f(normal).y);
 });
