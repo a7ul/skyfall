@@ -1,5 +1,9 @@
 # Skyfall Protocol
 
+
+
+Game url: https://a7ul.github.io/skyfall
+
 **Skyfall Protocol is a fully vibe-coded AAA+ air-combat game that runs entirely in desktop Chrome for free.** Fly seven modern aircraft over a textured 3D Lyon, fight through a four-act campaign mission, or explore the city in free flight. This is a playable prototype, with AAA+ as its visual and gameplay ambition.
 
 This project asks how far modern browser graphics and AI-assisted development can go. The challenge was to direct and playtest the game through prompts and visuals, without manually reading the implementation code. WebGPU, local map storage, open city data, and off-the-shelf aircraft assets made a browser-only version possible without an API key, billing account, or game installation.
