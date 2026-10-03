@@ -102,7 +102,7 @@ Local development uses Vite to proxy public Lyon tiles and convert their legacy 
 
 The repository is private, and its Pages workflow stays skipped on GitHub Free. When the repo becomes eligible, select **Settings → Pages → GitHub Actions**, then run the deployment workflow or push to `main`. The expected URL is `https://a7ul.github.io/skyfall/`.
 
-A local static Pages build is available with `VITE_BASE_PATH=/skyfall/ bun run build:pages`. It creates an approximately 942 MiB preconverted Lyon site in ignored `dist/`. The pack keeps broad lower-detail city coverage and includes another photomesh detail level along the starting flight corridor. Replacement tile groups are kept complete so a detailed patch cannot leave empty space where its parent mesh disappears.
+A local static Pages build is available with `VITE_BASE_PATH=/skyfall/ bun run build:pages`. It creates an approximately 938 MiB preconverted Lyon site in ignored `dist/`. The pack keeps broad lower-detail city coverage and includes another photomesh detail level across a roughly 950 m radius around central Lyon. The finer tiles use Draco geometry compression, with the decoder served from the same static site. The build verifies that every packaged city region has finer child tiles and that all linked models are present. Outside the packaged detailed area, the city remains at the lower-detail level because the full Lyon photomesh exceeds the GitHub Pages site size limit.
 
 </details>
 

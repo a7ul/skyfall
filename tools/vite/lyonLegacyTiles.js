@@ -22,7 +22,7 @@ function removeLegacyRtc(glb){
   return Buffer.concat([header,padded,glb.subarray(20+jsonLength)]);
 }
 
-export async function convertLyonTile(source){
+export async function convertLyonTile(source,{draco=false}={}){
   const glbStart=source.indexOf(Buffer.from('glTF'),28);
   if(source.toString('ascii',0,4)!=='b3dm'||glbStart<0)throw new Error('Invalid Lyon b3dm');
   let tile;
@@ -30,7 +30,7 @@ export async function convertLyonTile(source){
     const jsonLength=source.readUInt32LE(glbStart+12);
     const gltf=JSON.parse(source.toString('utf8',glbStart+20,glbStart+20+jsonLength));
     const rtcCenter=gltf.extensions?.CESIUM_RTC?.center;
-    const converted=removeLegacyRtc(Buffer.from((await processGlb(source.subarray(glbStart),{})).glb));
+    const converted=removeLegacyRtc(Buffer.from((await processGlb(source.subarray(glbStart),draco?{dracoOptions:{compressionLevel:7,quantizePositionBits:14,quantizeNormalBits:10,quantizeTexcoordBits:12}}:{})).glb));
     if(rtcCenter){
       const ftJsonLength=source.readUInt32LE(12);
       const ftBinaryLength=source.readUInt32LE(16);

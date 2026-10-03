@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import {HDRLoader} from 'three/addons/loaders/HDRLoader.js';
+import {DRACOLoader} from 'three/addons/loaders/DRACOLoader.js';
 import {TilesRenderer} from '3d-tiles-renderer';
-import {LoadRegionPlugin,ReorientationPlugin,SphereRegion} from '3d-tiles-renderer/three/plugins';
+import {GLTFExtensionsPlugin,LoadRegionPlugin,ReorientationPlugin,SphereRegion} from '3d-tiles-renderer/three/plugins';
 import {createTraffic} from './traffic.js';
 import {sampleCollisionHeight} from './collisionField.js';
 import {approachTileError,tileErrorTarget} from './tileQuality.js';
@@ -33,6 +34,9 @@ export async function createLyonWorld(scene,onProgress=()=>{},renderer,camera){
   const sun=new THREE.DirectionalLight(0xffe1bc,2.8);sun.position.set(-690,690,-900);scene.add(sun);
 
   const tiles=new TilesRenderer(asset('lyon-photomesh/tileset.json'));
+  const dracoLoader=new DRACOLoader();
+  dracoLoader.setDecoderPath(asset('assets/draco/'));
+  tiles.registerPlugin(new GLTFExtensionsPlugin({dracoLoader}));
   // The camera gets finer visible tiles. A modest region ahead of the jet
   // loads the next blocks before they cross the frustum.
   tiles.errorTarget=9.5;
