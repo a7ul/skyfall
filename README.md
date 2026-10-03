@@ -101,4 +101,4 @@ A local static Pages build is available with `VITE_BASE_PATH=/skyfall/ bun run b
 
 ## Credits and licenses
 
-The fighter models are third-party assets with **noncommercial licenses**; check [aircraft attribution](public/assets/aircraft/ATTRIBUTION.md) before redistribution or commercial use. The sky and HDR lighting are adapted from [Poly Haven's Kloppenheim 05](https://polyhaven.com/a/kloppenheim_05_puresky), CC0. Sound sources and licenses are in [audio credits](public/assets/audio/CREDITS.md). The Lyon and OpenStreetMap data retain the licenses linked above.
+The fighter models are third-party assets with **noncommercial licenses**; check [aircraft attribution](public/assets/aircraft/ATTRIBUTION.md) before redistribution or commercial use. The late-afternoon sky and HDR lighting come from [Poly Haven's Qwantani Late Afternoon (Pure Sky)](https://polyhaven.com/a/qwantani_late_afternoon_puresky), CC0. Sound sources and licenses are in [audio credits](public/assets/audio/CREDITS.md). The Lyon and OpenStreetMap data retain the licenses linked above.
