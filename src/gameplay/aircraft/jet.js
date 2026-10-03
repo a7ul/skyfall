@@ -6,8 +6,8 @@ import {prepareControlSurfaces,bindControlSurfaces} from './controlSurfaces.js';
 
 // The bundled, textured GLBs are credited in public/assets/aircraft/ATTRIBUTION.md.
 export const AIRCRAFT = [
-  {id:'f22', label:'F-22 RAPTOR', role:'STEALTH AIR SUPERIORITY', origin:'USAF · TWIN ENGINE', speed:1.08, turn:1.0, model:'f-22.glb', length:14.4, nozzles:[[-1.12,-.79,5.42,.33],[1.12,-.79,5.42,.33]]},
-  {id:'f35', label:'F-35 LIGHTNING II', role:'MULTIROLE STRIKE', origin:'USAF · SINGLE ENGINE', speed:.98, turn:1.06, model:'f-35.glb', length:12.8, nozzles:[[0,-.62,5.1,.36]]},
+  {id:'f22', label:'F-22 RAPTOR', role:'STEALTH AIR SUPERIORITY', origin:'USAF · TWIN ENGINE', speed:1.08, turn:1.0, model:'f-22.glb', length:14.4, nozzles:[[-.62,-.79,5.35,.3],[.62,-.79,5.35,.3]]},
+  {id:'f35', label:'F-35 LIGHTNING II', role:'MULTIROLE STRIKE', origin:'USAF · SINGLE ENGINE', speed:.98, turn:1.06, model:'f-35.glb', length:12.8, nozzles:[[0,-.62,5.32,.31]]},
   {id:'su57', label:'SU-57 FELON', role:'HIGH AGILITY INTERCEPTOR', origin:'VKS · TWIN ENGINE', speed:1.13, turn:1.14, model:'su-57.glb', length:15.1, nozzles:[[-1.19,.04,6.1,.34],[1.19,.04,6.1,.34]]},
   {id:'su35', label:'SU-35 FLANKER-E', role:'LONG RANGE MULTIROLE', origin:'VKS · TWIN ENGINE', speed:1.02, turn:1.10, model:'su-35.glb', length:16.1, exhaustToeIn:.035, nozzles:[[-1.02,-1.06,6.53,.33],[1.02,-1.06,6.53,.33]]}
 ];
